@@ -1,0 +1,693 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-5 pb-8">
+
+  <!-- ── Cajas olvidadas (+24h abiertas): bloquean terminal y arqueo ──── -->
+  <!-- Esto sí va por encima del saludo: no es un aviso, es un bloqueo. Con una
+       caja abierta de ayer el terminal no puede vender. -->
+  @if (cajasOlvidadas().length) {
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-symbols-outlined text-amber-600 text-[18px]" aria-hidden="true">running_with_errors</span>
+        <h3 class="text-sm font-bold text-amber-900">
+          {{ cajasOlvidadas().length === 1 ? 'Hay una caja sin cerrar' : 'Hay ' + cajasOlvidadas().length + ' cajas sin cerrar' }}
+        </h3>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        @for (c of cajasOlvidadas(); track c.id) {
+          <div class="flex items-center justify-between gap-2 text-xs bg-white/70 rounded-lg px-3 py-2">
+            <span class="text-amber-900 min-w-0 truncate">
+              <b>{{ c.terminal }}</b> · {{ c.sucursal }} — {{ c.cajero }}
+            </span>
+            <span class="shrink-0 font-bold text-amber-700 tabular-nums">
+              abierta hace {{ c.diasAbierta }} {{ c.diasAbierta === 1 ? 'día' : 'días' }}
+            </span>
+          </div>
+        }
+      </div>
+      <p class="text-2xs text-amber-800 mt-2">
+        Ese terminal no puede usarse hasta cerrarla. Ve a <b>Caja</b> para forzar el cierre con arqueo.
+      </p>
+    </div>
+  }
+
+  <!-- ══ HERO ═════════════════════════════════════════════════════════════
+       Un solo bloque para todos los roles; solo cambia la paleta. Antes había
+       dos heros casi idénticos duplicados en la plantilla, y se habían ido
+       separando: dos botones contiguos con radios distintos, texto ámbar
+       heredado de una paleta anterior sobre fondo slate.
+
+       Y va PRIMERO. Antes el panel rojo de alertas se pintaba encima del
+       saludo: el sistema gritaba antes de decir buenos días.
+       ════════════════════════════════════════════════════════════════════ -->
+  <div class="bg-surface rounded-xl shadow-card p-5 lg:px-6 lg:py-6 flex items-start gap-4">
+
+    <!-- La única pieza que recuerda la hora. El resto del bloque no cambia. -->
+    <div [class]="'size-11 rounded-xl flex items-center justify-center shrink-0 ' + iconoHora().clase">
+      <span class="material-symbols-outlined text-[22px]" aria-hidden="true">{{ iconoHora().icono }}</span>
+    </div>
+
+    <div class="min-w-0 flex-1">
+      <p class="text-2xs font-medium text-text-secondary capitalize">{{ fechaHoy() }}</p>
+
+      <h1 class="text-2xl font-bold tracking-tight text-balance leading-tight text-text-main mt-0.5">
+        {{ saludo() }}, {{ nombreUsuario() }}
+      </h1>
+
+      <p class="text-sm mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-text-secondary">
+        <span class="material-symbols-outlined icon-fill text-[16px]" aria-hidden="true">
+          {{ esSuperAdmin() ? 'verified' : 'badge' }}
+        </span>
+        {{ rolUsuario() }}
+        @if (esSuperAdmin()) {
+          <span class="text-border-color">·</span>
+          {{ sucursalSvc.sucursalesActivas() }} de {{ sucursalSvc.sucursales().length }} sucursales activas
+        } @else if (nombreSucursalUsuario()) {
+          <span class="text-border-color">·</span>
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">store</span>
+          {{ nombreSucursalUsuario() }}
+        }
+      </p>
+
+      <div class="flex flex-wrap items-center gap-2 mt-5">
+        @for (a of accesosRapidos(); track a.ruta) {
+          <button type="button" (click)="irA(a.ruta)" [class]="claseAcceso(a.destacado)">
+            <span class="material-symbols-outlined text-[18px]"
+                  [class.icon-fill]="a.destacado" aria-hidden="true">{{ a.icono }}</span>
+            {{ a.label }}
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ QUÉ ATENDER HOY ══════════════════════════════════════════════════
+       Antes: cuatro filas de 60px, cada una con su icono, su título largo, su
+       subtítulo y su botón — 220px para decir cuatro cifras que además volvían
+       a salir en las tarjetas KPI y otra vez en los paneles laterales. El mismo
+       dato tres veces, en tres lenguajes visuales.
+
+       Ahora: una banda de chips. Cada chip sigue siendo un botón que lleva a
+       donde hay que ir, y el aria-label conserva la frase completa para el
+       lector de pantalla.
+
+       Y los chips se rehicieron: llevaban fondo tintado + borde de color +
+       texto de color, tres señales para una sola cosa, metidos dentro de una
+       tarjeta que también tenía borde — cajas dentro de una caja, que es
+       justo lo que se veía pegado. Ahora la gravedad la carga UN punto de
+       color y el peso de la cifra; el chip es un relleno neutro sin borde.
+       ════════════════════════════════════════════════════════════════════ -->
+  @if (alertas().length) {
+    <div class="bg-surface rounded-xl shadow-card px-5 py-4">
+      <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+        <h2 class="text-sm font-bold text-text-main mr-2">Qué atender hoy</h2>
+
+        @for (a of alertas(); track a.titulo) {
+          <button type="button" (click)="irA(a.ruta)"
+                  [attr.aria-label]="a.titulo + '. ' + a.detalle + '. ' + a.cta"
+                  class="fs-fade-in-up group flex items-center gap-2.5 h-11 pl-3 pr-3.5 rounded-xl
+                         bg-background-light hover:bg-slate-200/60 transition-colors
+                         focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+
+            <!-- El punto es la única señal de gravedad. Sustituye al borde de
+                 color, al fondo tintado y al texto de color a la vez. -->
+            <span class="size-1.5 rounded-full shrink-0"
+                  [class]="a.critico ? 'bg-accent-red' : 'bg-accent-orange'" aria-hidden="true"></span>
+
+            @if (a.valor !== null) {
+              <span class="text-lg font-bold tabular-nums leading-none tracking-tight"
+                    [class]="a.critico ? 'text-accent-red-ink' : 'text-text-main'">{{ a.valor }}</span>
+            } @else {
+              <span class="material-symbols-outlined text-[18px] leading-none"
+                    [class]="a.critico ? 'text-accent-red-ink' : 'text-text-main'" aria-hidden="true">{{ a.icono }}</span>
+            }
+
+            <span class="text-xs font-medium text-text-secondary whitespace-nowrap">{{ a.etiqueta }}</span>
+
+            <!-- Invisible en reposo: cuatro flechas grises permanentes eran
+                 ruido en una banda que ya se lee de un vistazo. -->
+            <span class="material-symbols-outlined text-[16px] text-text-secondary opacity-0
+                         group-hover:opacity-100 transition-opacity -mr-1"
+                  aria-hidden="true">chevron_right</span>
+          </button>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="bg-surface rounded-xl shadow-card px-5 py-4 flex items-center gap-2.5">
+      <span class="size-1.5 rounded-full bg-accent-green shrink-0" aria-hidden="true"></span>
+      <span class="text-sm font-bold text-text-main">Todo en orden</span>
+      <span class="text-xs text-text-secondary">Sin alertas pendientes</span>
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       VISTA SUPER_ADMIN — cifras GLOBALES de todas las boticas
+       ══════════════════════════════════════════════════════════════════ -->
+  @if (esSuperAdmin()) {
+
+    <!-- El rótulo de alcance no es decoración: sin él se veían ocho tarjetas
+         idénticas seguidas y nada decía que las cuatro de arriba sumaban las
+         tres boticas y las de abajo eran de una sola. -->
+    <div class="flex items-center gap-2 -mb-1">
+      <span class="material-symbols-outlined text-[18px] text-text-secondary" aria-hidden="true">apartment</span>
+      <h2 class="text-sm font-bold text-text-main">Todas las boticas</h2>
+      <span class="text-xs text-text-secondary">· resumen de hoy</span>
+    </div>
+
+    <!-- Sin chips de icono. Eran ocho, todos del mismo azul, todos con la misma
+         forma: no codificaban nada y convertían las dos filas en una pared de
+         tarjetas iguales. La cifra sola manda mejor. -->
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <p class="text-xs font-medium text-text-secondary">Venta global</p>
+        <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">S/ {{ sucursalSvc.totalVentaGlobal() | number:'1.0-0' }}</p>
+        <p class="text-2xs text-text-secondary mt-2.5">{{ sucursalSvc.sucursales().length }} sucursales combinadas</p>
+      </div>
+
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <p class="text-xs font-medium text-text-secondary">Tickets totales</p>
+        <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">{{ sucursalSvc.totalTicketsGlobal() }}</p>
+        <p class="text-2xs text-text-secondary mt-2.5">Ventas realizadas hoy</p>
+      </div>
+
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <p class="text-xs font-medium text-text-secondary">Sucursales activas</p>
+        <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">
+          {{ sucursalSvc.sucursalesActivas() }}<span class="text-lg text-text-secondary font-medium"> / {{ sucursalSvc.sucursales().length }}</span>
+        </p>
+        <p class="text-2xs text-text-secondary mt-2.5">Boticas operativas</p>
+      </div>
+
+      <!-- Un número de alerta sin salida solo produce ansiedad: ahora la
+           tarjeta entera lleva al comparativo de sucursales. -->
+      <button type="button" (click)="irASucursales()"
+              class="text-left bg-surface rounded-xl shadow-card p-5 hover:shadow-card-hover transition-shadow
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+        <p class="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+          @if (sucursalSvc.totalAlertasGlobal() > 0) {
+            <span class="size-1.5 rounded-full bg-accent-red shrink-0" aria-hidden="true"></span>
+          }
+          Alertas globales
+        </p>
+        <p class="text-3xl font-black leading-none tabular-nums tracking-tight mt-3"
+           [class]="sucursalSvc.totalAlertasGlobal() > 0 ? 'text-accent-red-ink' : 'text-text-main'">
+          {{ sucursalSvc.totalAlertasGlobal() }}
+        </p>
+        <p class="text-2xs text-text-secondary mt-2.5">
+          {{ sucursalSvc.totalAlertasGlobal() > 0
+             ? 'Stock y vencimientos en las ' + sucursalSvc.sucursales().length + ' boticas'
+             : 'Todo en orden en las ' + sucursalSvc.sucursales().length + ' boticas' }}
+        </p>
+      </button>
+    </div>
+
+    <!-- ── Ranking de sucursales ──────────────────────────────────────────
+         Estaba entero en ámbar: barras, icono, enlace y anillo de foco. Con la
+         marca en azul, el ámbar acababa siendo el color dominante del tablero
+         y perdía su único trabajo, que es avisar. Aquí vuelve al azul; el
+         ámbar solo se queda en el estado "en mantenimiento".
+         ──────────────────────────────────────────────────────────────────── -->
+    <div class="bg-surface rounded-xl shadow-card overflow-hidden">
+      <div class="px-5 py-4 border-b border-border-color flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined icon-fill text-[18px]" aria-hidden="true">leaderboard</span>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-text-main">Ranking de ventas — hoy</h3>
+            <p class="text-2xs text-text-secondary">Comparativa entre sucursales</p>
+          </div>
+        </div>
+        <button type="button" (click)="irASucursales()"
+          class="shrink-0 text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1 transition-colors">
+          Ver detalle
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+        </button>
+      </div>
+      <div class="p-5 flex flex-col gap-4">
+        @for (s of rankingSucursales(); track s.id; let i = $index) {
+          <button type="button" (click)="irASucursal(s.id)"
+            [attr.aria-label]="'Ver sucursal ' + s.nombre"
+            class="w-full text-left flex items-center gap-4 cursor-pointer group rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <div class="size-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                 [class.bg-primary]="i === 0" [class.text-white]="i === 0"
+                 [class.bg-slate-100]="i !== 0" [class.text-text-secondary]="i !== 0">
+              {{ i + 1 }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-1.5">
+                <p class="text-xs font-bold text-text-main group-hover:text-primary transition-colors truncate">
+                  {{ s.nombre }}
+                  <span class="text-2xs font-normal text-text-secondary ml-1">· {{ s.distrito }}</span>
+                </p>
+                <p class="text-xs font-bold text-text-main shrink-0 ml-2 tabular-nums">
+                  S/ {{ (s.kpi?.ventaHoy ?? 0) | number:'1.0-0' }}
+                </p>
+              </div>
+              <div class="h-2 bg-background-light rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all"
+                     [class.bg-primary]="i === 0"
+                     [class.bg-primary-400]="i === 1"
+                     [class.bg-primary-300]="i === 2"
+                     [class.bg-slate-300]="i > 2"
+                     [style.width.%]="anchoBarra(s.kpi?.ventaHoy ?? 0)">
+                </div>
+              </div>
+              <p class="text-2xs text-text-secondary mt-1">
+                {{ s.kpi?.ticketsHoy ?? 0 }} tickets
+                @if (s.estado !== 'ACTIVA') {
+                  · <span class="text-accent-orange-ink font-semibold">{{ s.estado === 'EN_MANTENIMIENTO' ? 'En mantenimiento' : 'Inactiva' }}</span>
+                }
+                @if ((s.kpi?.alertasStock ?? 0) + (s.kpi?.alertasVencimiento ?? 0) > 0) {
+                  · <span class="text-accent-red-ink font-semibold">{{ (s.kpi?.alertasStock ?? 0) + (s.kpi?.alertasVencimiento ?? 0) }} alertas</span>
+                }
+              </p>
+            </div>
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (sucursalSvc.sucursalActiva(); as suc) {
+      <div class="flex items-center gap-2 mt-1 -mb-1">
+        <span class="material-symbols-outlined text-[18px] text-text-secondary" aria-hidden="true">store</span>
+        <h2 class="text-sm font-bold text-text-main">{{ suc.nombre }}</h2>
+        <span class="text-xs text-text-secondary">· detalle de esta sucursal</span>
+      </div>
+    }
+  }
+
+  <!-- ══ KPI DE LA SUCURSAL ACTIVA ════════════════════════════════════════
+       Eran cuatro y dos de ellas ("Por vencer" y "Stock crítico") repetían al
+       pie de la letra los chips de la banda de arriba. Se fueron. Las tres que
+       quedan responden preguntas que no contesta ningún otro bloque: cuánto
+       vendió ESTA botica hoy, de cuánto es cada venta, y cuánto capital hay
+       parado en el almacén.
+       ════════════════════════════════════════════════════════════════════ -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+    <!-- Venta de la sucursal activa. Antes vivía en unas "stat pills" dentro
+         del hero que solo veía quien NO era super admin: el dueño no tenía en
+         ninguna parte la venta de la botica que estaba mirando, solo la suma
+         de las tres. -->
+    <div class="bg-surface rounded-xl shadow-card p-5">
+      <p class="text-xs font-medium text-text-secondary">Venta hoy</p>
+      <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">S/ {{ ventaHoy() | number:'1.2-2' }}</p>
+      @if (tendenciaVenta(); as t) {
+        <p class="flex items-center gap-1 text-2xs font-bold mt-2.5"
+           [class]="t.positivo ? 'text-accent-green-ink' : 'text-accent-red-ink'">
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">{{ t.positivo ? 'trending_up' : 'trending_down' }}</span>
+          {{ t.texto }} vs. ayer
+        </p>
+      } @else {
+        <p class="text-2xs text-text-secondary mt-2.5">Sin ventas ayer para comparar</p>
+      }
+    </div>
+
+    <!-- Ticket promedio -->
+    <div class="bg-surface rounded-xl shadow-card p-5">
+      <p class="text-xs font-medium text-text-secondary">Ticket promedio</p>
+      <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">S/ {{ ticketPromedio() | number:'1.2-2' }}</p>
+      <p class="text-2xs text-text-secondary mt-2.5">
+        {{ ticketsHoy() }} {{ ticketsHoy() === 1 ? 'ticket' : 'tickets' }} hoy
+        @if (tendenciaTkt(); as t) {
+          · <span [class]="t.positivo ? 'text-accent-green-ink font-bold' : 'text-accent-red-ink font-bold'">{{ t.texto }}</span>
+        }
+      </p>
+    </div>
+
+    <!-- Valor de inventario — solo quien puede ver Finanzas. Es capital
+         inmovilizado: dato de dueño, no de mostrador. -->
+    @if (puedeVerFinanzas()) {
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <p class="text-xs font-medium text-text-secondary">Valor inventario</p>
+        <p class="text-3xl font-black text-text-main leading-none tabular-nums tracking-tight mt-3">S/ {{ valorInventario() | number:'1.0-0' }}</p>
+        <p class="text-2xs text-text-secondary mt-2.5">{{ totalProductos() }} productos activos · a costo</p>
+      </div>
+    } @else {
+      <!-- En su lugar, lo que el cajero SÍ necesita al entrar: su turno. -->
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <p class="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+          <span class="size-1.5 rounded-full shrink-0"
+                [class]="miTurno().abierta ? 'bg-accent-green' : 'bg-accent-orange'" aria-hidden="true"></span>
+          Mi turno
+        </p>
+        @if (miTurno().abierta) {
+          <p class="text-2xl font-black text-accent-green-ink leading-none tracking-tight mt-3">Caja abierta</p>
+          <p class="text-2xs text-text-secondary mt-2.5">{{ miTurno().terminal }} · desde las {{ miTurno().desde }}</p>
+        } @else {
+          <p class="text-2xl font-black text-accent-orange-ink leading-none tracking-tight mt-3">Sin abrir</p>
+          <p class="text-2xs text-text-secondary mt-2.5">Abre tu caja para poder vender</p>
+        }
+      </div>
+    }
+  </div>
+
+  <!-- ══ CUERPO EN DOS COLUMNAS ═══════════════════════════════════════════
+       Antes esto eran DOS rejillas de 5 columnas apiladas. La primera ponía un
+       gráfico corto (~330px) frente a dos listas largas (~640px): 300px de
+       blanco muerto a la izquierda, que es el hueco que se veía en pantalla.
+       `items-start` había evitado que la tarjeta se estirara, pero nadie
+       llenaba el vacío.
+
+       Ahora es UNA sola rejilla con dos pilas: los dos bloques altos
+       (gráfico + ventas) a la izquierda y los tres cortos a la derecha, así
+       ambas columnas terminan a la misma altura.
+       ════════════════════════════════════════════════════════════════════ -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+
+    <!-- ── Columna ancha ──────────────────────────────────────────────── -->
+    <div class="lg:col-span-3 flex flex-col gap-5">
+
+      <!-- Ventas por hora -->
+      <div class="bg-surface rounded-xl shadow-card p-5">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div class="min-w-0">
+            <h3 class="text-base font-bold text-text-main">Ventas por hora</h3>
+            <p class="text-xs text-text-secondary mt-0.5">Ingresos del día, hora por hora</p>
+          </div>
+          @if (ticketsHoy() > 0) {
+            <div class="text-right shrink-0">
+              <p class="text-2xs font-medium text-text-secondary">Hora pico</p>
+              <p class="text-sm font-bold text-primary tabular-nums">{{ horaPico() }}</p>
+            </div>
+          }
+        </div>
+
+        @if (ticketsHoy() > 0) {
+          <!-- El gráfico no tenía eje ni valores: las barras se escalaban
+               contra el máximo del día, así que la más alta siempre llegaba
+               arriba del todo y no había manera de saber si eran 200 soles o
+               2.000 sin pasar el ratón por encima. Ahora hay escala, guías y
+               la barra pico lleva su cifra escrita. -->
+          <div class="flex gap-3">
+            <!-- Eje Y -->
+            <div class="relative w-12 h-48 shrink-0" aria-hidden="true">
+              @for (t of ejeVentas(); track t.pct) {
+                <span class="absolute right-0 translate-y-1/2 text-2xs leading-none text-text-secondary tabular-nums"
+                      [style.bottom.%]="t.pct">{{ t.valor | number:'1.0-0' }}</span>
+              }
+            </div>
+
+            <!-- Área de barras -->
+            <div class="relative flex-1 h-48">
+              @for (t of ejeVentas(); track t.pct) {
+                <div class="absolute left-0 right-0 border-t"
+                     [class]="t.pct === 0 ? 'border-slate-300' : 'border-slate-100'"
+                     [style.bottom.%]="t.pct" aria-hidden="true"></div>
+              }
+
+              <div class="absolute inset-0 flex items-end gap-1.5">
+                @for (d of barrasHora(); track d.hora) {
+                  <div class="flex-1 h-full flex items-end justify-center relative group">
+                    @if (d.total > 0) {
+                      <!-- Las horas sin venta ya no dibujan nada. Antes eran
+                           muñones grises de 4px que parecían un gráfico roto. -->
+                      <div class="w-full rounded-t transition-colors"
+                           [class]="d.total === maxVentaHora() ? 'bg-primary' : 'bg-primary-500 group-hover:bg-primary-600'"
+                           [style.height.%]="d.porcentaje"
+                           [style.min-height.px]="3"></div>
+                      <p class="absolute left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap pointer-events-none
+                                text-2xs font-bold tabular-nums transition-opacity"
+                         [style.bottom.%]="d.porcentaje"
+                         [class]="d.total === maxVentaHora()
+                           ? 'text-primary opacity-100'
+                           : 'text-text-main opacity-0 group-hover:opacity-100'">
+                        S/ {{ d.total | number:'1.0-0' }}
+                      </p>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- Etiquetas de hora, alineadas con las barras -->
+          <div class="flex gap-3 mt-1.5">
+            <div class="w-12 shrink-0"></div>
+            <div class="flex-1 flex gap-1.5">
+              @for (d of barrasHora(); track d.hora) {
+                <span class="flex-1 text-center text-2xs tabular-nums whitespace-nowrap"
+                      [class]="d.total === maxVentaHora() ? 'text-primary font-bold' : 'text-text-secondary font-medium'">
+                  {{ d.label }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-border-color flex items-center justify-between gap-3">
+            <p class="text-xs text-text-secondary shrink-0">Producto más vendido</p>
+            <p class="text-xs font-bold text-text-main truncate">{{ mejorProducto() }}</p>
+          </div>
+        } @else {
+          <div class="h-52 flex flex-col items-center justify-center text-center">
+            <div class="size-11 rounded-xl bg-background-light text-text-secondary flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-[22px]" aria-hidden="true">show_chart</span>
+            </div>
+            <p class="text-sm font-semibold text-text-main">El día todavía no arranca</p>
+            <p class="text-xs text-text-secondary mt-1 max-w-xs">
+              Cuando se registre la primera venta verás aquí cómo se mueve cada hora.
+            </p>
+          </div>
+        }
+      </div>
+
+      <!-- Ventas recientes -->
+      <div class="bg-surface rounded-xl shadow-card overflow-hidden">
+        <div class="px-5 py-4 border-b border-border-color flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px] icon-fill" aria-hidden="true">receipt_long</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-text-main">Ventas recientes</h3>
+              <p class="text-2xs text-text-secondary">Últimas transacciones del día</p>
+            </div>
+          </div>
+          <button type="button" (click)="irAPOS()"
+            class="shrink-0 text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1 transition-colors">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>
+            Nueva venta
+          </button>
+        </div>
+        <div class="divide-y divide-border-color">
+          @for (v of ventasRecientes(); track v.id) {
+            <div class="flex items-center gap-4 px-5 py-3 hover:bg-background-light/60 transition-colors">
+              <div [class]="'size-8 rounded-lg flex items-center justify-center shrink-0 ' + colorMetodo(v.metodo)">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ iconoMetodo(v.metodo) }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs font-bold text-text-main truncate">{{ v.id }}</p>
+                  <p class="text-xs font-bold text-text-main shrink-0 tabular-nums">S/ {{ v.total | number:'1.2-2' }}</p>
+                </div>
+                <div class="flex items-center justify-between gap-2 mt-0.5">
+                  <p class="text-2xs text-text-secondary truncate">
+                    {{ v.cliente }} · {{ v.items.length }} ítem{{ v.items.length === 1 ? '' : 's' }}
+                  </p>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-2xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-text-secondary">
+                      {{ v.metodo }}
+                    </span>
+                    <span class="text-2xs text-text-secondary tabular-nums">{{ v.hora }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          } @empty {
+            <div class="flex flex-col items-center justify-center py-12 px-5 text-center">
+              <div class="size-11 rounded-xl bg-background-light text-text-secondary flex items-center justify-center mb-3">
+                <span class="material-symbols-outlined text-[22px]" aria-hidden="true">receipt_long</span>
+              </div>
+              <p class="text-sm font-semibold text-text-main">Aún no hay ventas hoy</p>
+              <p class="text-xs text-text-secondary mt-1 max-w-xs">
+                Las ventas que registres aparecerán aquí al instante.
+              </p>
+              <button type="button" (click)="irAPOS()"
+                      class="mt-4 inline-flex items-center gap-1.5 bg-primary hover:bg-primary-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>
+                Registrar una venta
+              </button>
+            </div>
+          }
+        </div>
+        <div class="px-5 py-3 border-t border-border-color">
+          <button type="button" (click)="irAFinanzas()"
+            class="text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1 transition-colors">
+            Ver reporte completo
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Columna estrecha ───────────────────────────────────────────── -->
+    <div class="lg:col-span-2 flex flex-col gap-5">
+
+      <!-- Control de vencimientos -->
+      <!-- El título decía "Próximos a Vencer" y el badge sumaba vencidos +
+           por vencer ("24 lotes"), mientras la tarjeta KPI de arriba decía
+           "14": dos cifras distintas para la misma botica en la misma
+           pantalla. Ahora el panel enseña las dos por separado y el título
+           admite que dentro hay de los dos tipos. -->
+      <div class="bg-surface rounded-xl shadow-card overflow-hidden">
+        <div class="px-5 py-4 border-b border-border-color flex items-center gap-2">
+          <div class="size-8 rounded-lg flex items-center justify-center shrink-0"
+               [class]="vencidosCount() > 0 ? 'bg-red-50 text-accent-red-ink' : 'bg-amber-50 text-accent-orange-ink'">
+            <span class="material-symbols-outlined text-[18px] icon-fill" aria-hidden="true">alarm</span>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-text-main">Control de vencimientos</h3>
+            <p class="text-2xs text-text-secondary">
+              @if (vencidosCount() > 0) {
+                <span class="font-bold text-accent-red-ink">{{ vencidosCount() }} vencidos</span> ·
+              }
+              {{ porVencerCount() }} por vencer en {{ diasAlerta() }} días
+            </p>
+          </div>
+        </div>
+
+        <div class="divide-y divide-border-color">
+          <!-- Solo los MÁS urgentes: con 24 lotes la lista medía tres
+               pantallas. El resto se ve en Inventario. -->
+          @for (a of vencimientosVisibles(); track a.lote) {
+            <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-background-light/60 transition-colors">
+              <div class="size-2 rounded-full shrink-0"
+                   [class.bg-accent-red]="a.dias <= 1"
+                   [class.bg-accent-orange]="a.dias > 1 && a.dias <= 5"
+                   [class.bg-slate-300]="a.dias > 5"
+                   aria-hidden="true">
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-text-main truncate">{{ a.nombre }}</p>
+                <p class="text-2xs text-text-secondary truncate">Lote {{ a.lote }} · {{ a.categoria }}</p>
+              </div>
+              <span class="text-2xs font-bold px-2.5 py-1 rounded-full shrink-0 whitespace-nowrap"
+                    [class.bg-red-100]="a.dias <= 1" [class.text-accent-red-ink]="a.dias <= 1"
+                    [class.bg-orange-100]="a.dias > 1 && a.dias <= 5" [class.text-accent-orange-ink]="a.dias > 1 && a.dias <= 5"
+                    [class.bg-slate-100]="a.dias > 5" [class.text-text-secondary]="a.dias > 5">
+                {{ etiquetaVencimiento(a.dias) }}
+              </span>
+            </div>
+          } @empty {
+            <div class="flex flex-col items-center justify-center py-8 text-text-secondary">
+              <span class="material-symbols-outlined text-[32px] mb-1 text-emerald-500" aria-hidden="true">verified</span>
+              <p class="text-xs font-semibold">Sin lotes próximos a vencer</p>
+            </div>
+          }
+          @if (vencimientosOcultos() > 0) {
+            <div class="px-5 py-2.5 bg-background-light/60">
+              <p class="text-2xs text-text-secondary text-center">
+                y {{ vencimientosOcultos() }} lote(s) más con vencimiento posterior
+              </p>
+            </div>
+          }
+        </div>
+
+        <div class="px-5 py-3 border-t border-border-color">
+          <button type="button" (click)="irAInventario()"
+            class="text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1 transition-colors">
+            Ver inventario completo
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stock crítico -->
+      @if (totalAlertasStock() > 0) {
+        <div class="bg-surface rounded-xl shadow-card overflow-hidden">
+          <div class="px-5 py-4 border-b border-border-color flex items-center gap-2">
+            <div class="size-8 rounded-lg bg-amber-50 text-accent-orange-ink flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]" aria-hidden="true">inventory</span>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-text-main">Stock crítico</h3>
+              <p class="text-2xs text-text-secondary">
+                @if (sinStock().length > 0) {
+                  <span class="font-bold text-accent-red-ink">{{ sinStock().length }} sin stock</span> ·
+                }
+                {{ stockCritico().length }} bajo el mínimo
+              </p>
+            </div>
+          </div>
+          <div class="divide-y divide-border-color max-h-[220px] overflow-y-auto">
+            @for (p of sinStock(); track p.id) {
+              <div class="flex items-center justify-between gap-2 px-5 py-2.5 hover:bg-background-light/60 transition-colors">
+                <p class="text-xs font-bold text-text-main truncate">{{ p.nombre }}</p>
+                <span class="text-2xs font-bold px-2 py-0.5 bg-red-100 text-accent-red-ink rounded-full shrink-0">Sin stock</span>
+              </div>
+            }
+            @for (p of stockCritico(); track p.id) {
+              <div class="flex items-center justify-between gap-2 px-5 py-2.5 hover:bg-background-light/60 transition-colors">
+                <p class="text-xs font-bold text-text-main truncate">{{ p.nombre }}</p>
+                <span class="text-2xs font-bold px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full shrink-0 tabular-nums">
+                  {{ stockEnSucursal(p) }} und.
+                </span>
+              </div>
+            }
+          </div>
+          <div class="px-5 py-3 border-t border-border-color">
+            <button type="button" (click)="irAInventario()"
+              class="text-xs font-bold text-primary hover:text-primary-700 flex items-center gap-1 transition-colors">
+              Gestionar inventario
+              <span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- Top productos -->
+      <div class="bg-surface rounded-xl shadow-card overflow-hidden">
+        <div class="px-5 py-4 border-b border-border-color flex items-center gap-2">
+          <div class="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[18px] icon-fill" aria-hidden="true">star</span>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm font-bold text-text-main">Top productos</h3>
+            <p class="text-2xs text-text-secondary">Por unidades vendidas hoy</p>
+          </div>
+        </div>
+        <div class="divide-y divide-border-color">
+          @for (p of topProductos(); track p.nombre; let i = $index) {
+            <div class="px-5 py-3 flex items-center gap-3 hover:bg-background-light/60 transition-colors">
+              <div class="size-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+                   [class.bg-primary]="i === 0" [class.text-white]="i === 0"
+                   [class.bg-slate-100]="i !== 0" [class.text-text-secondary]="i !== 0">
+                {{ i + 1 }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <p class="text-xs font-bold text-text-main truncate">{{ p.nombre }}</p>
+                  <p class="text-xs font-bold text-text-main shrink-0 tabular-nums">{{ p.ventas }}</p>
+                </div>
+                <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all"
+                       [class.bg-primary]="i === 0"
+                       [class.bg-primary-400]="i === 1"
+                       [class.bg-primary-300]="i === 2"
+                       [class.bg-slate-300]="i > 2"
+                       [style.width.%]="(p.ventas / (topProductos()[0]?.ventas ?? 1)) * 100">
+                  </div>
+                </div>
+              </div>
+              <p class="text-2xs font-bold text-text-secondary shrink-0 tabular-nums">
+                S/ {{ p.ingresos | number:'1.0-0' }}
+              </p>
+            </div>
+          } @empty {
+            <div class="flex flex-col items-center justify-center py-12 px-5 text-center">
+              <div class="size-11 rounded-xl bg-background-light text-text-secondary flex items-center justify-center mb-3">
+                <span class="material-symbols-outlined text-[22px]" aria-hidden="true">bar_chart</span>
+              </div>
+              <p class="text-sm font-semibold text-text-main">Sin datos todavía</p>
+              <p class="text-xs text-text-secondary mt-1 max-w-xs">
+                El ranking se arma con las ventas del día.
+              </p>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

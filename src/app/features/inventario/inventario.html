@@ -1,0 +1,1035 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-6">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────────────── -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Inventario</h2>
+      <p class="text-text-secondary text-sm mt-0.5">Gestiona existencias, lotes, vencimientos y precios.</p>
+    </div>
+    <div class="flex gap-2">
+      <button (click)="abrirFormNuevo()"
+              class="h-10 px-4 border border-border-color bg-white hover:bg-gray-50 text-text-main rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors">
+        <span class="material-symbols-outlined text-[20px]">add</span>
+        Producto individual
+      </button>
+      <button (click)="abrirNotaIngreso()"
+              class="h-10 px-4 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
+        <span class="material-symbols-outlined text-[20px]">move_to_inbox</span>
+        Nota de Ingreso
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Pestañas ───────────────────────────────────────────────────────────── -->
+  <div class="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+    <button (click)="vistaActiva.set('inventario')"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            [class]="vistaActiva() === 'inventario' ? 'bg-white text-text-main shadow-sm' : 'text-text-secondary hover:text-text-main'">
+      <span class="material-symbols-outlined text-[18px]">inventory_2</span>
+      Catálogo
+    </button>
+    <button (click)="vistaActiva.set('alertas')"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            [class]="vistaActiva() === 'alertas' ? 'bg-white text-text-main shadow-sm' : 'text-text-secondary hover:text-text-main'">
+      <span class="material-symbols-outlined text-[18px]">notifications_active</span>
+      Alertas
+      @if (kpis().vencidos + kpis().porVencer + kpis().sinStock + kpis().stockBajo > 0) {
+        <span class="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+          {{ kpis().vencidos + kpis().porVencer + kpis().sinStock + kpis().stockBajo }}
+        </span>
+      }
+    </button>
+  </div>
+
+  @if (vistaActiva() === 'alertas') {
+    <!-- ── VISTA ALERTAS ────────────────────────────────────────────────────── -->
+    <div class="flex flex-col gap-6">
+
+      <!-- Vencidos -->
+      @if (productosConAlerta().vencidos.length > 0) {
+        <div class="bg-surface border border-red-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-3 px-5 py-3 bg-red-50 border-b border-red-100">
+            <span class="material-symbols-outlined text-red-600">dangerous</span>
+            <h3 class="font-bold text-red-700 text-sm">Productos Vencidos ({{ productosConAlerta().vencidos.length }})</h3>
+            <p class="text-xs text-red-600 ml-auto">Retirar de estante inmediatamente</p>
+          </div>
+          <div class="divide-y divide-border-color">
+            @for (p of productosConAlerta().vencidos; track p.id) {
+              <div class="flex items-center gap-4 px-5 py-3 hover:bg-red-50/40 transition-colors">
+                <div class="flex-1 min-w-0">
+                  <p class="font-bold text-text-main text-sm">{{ p.nombre }}</p>
+                  <p class="text-xs text-text-secondary">{{ p.principioActivo }} · Lote {{ p.lote.numero }}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-xs text-red-600 font-bold">Venció {{ formatFecha(p.lote.fechaVencimiento) }}</p>
+                  <p class="text-xs text-text-secondary">Stock: {{ p.stockActual }} uds</p>
+                </div>
+                <span class="text-xs font-black px-2 py-1 rounded-full bg-red-100 text-red-700 shrink-0">VENCIDO</span>
+                <button (click)="abrirAjuste(p, $event)"
+                        class="shrink-0 h-8 px-3 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-bold transition-colors">
+                  Ajustar
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Por vencer -->
+      @if (productosConAlerta().porVencer.length > 0) {
+        <div class="bg-surface border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-3 px-5 py-3 bg-amber-50 border-b border-amber-100">
+            <span class="material-symbols-outlined text-amber-600">warning</span>
+            <h3 class="font-bold text-amber-700 text-sm">Por vencer en {{ diasAlerta() }} días ({{ productosConAlerta().porVencer.length }})</h3>
+            <p class="text-xs text-amber-600 ml-auto">Priorizar venta o devolución a proveedor</p>
+          </div>
+          <div class="divide-y divide-border-color">
+            @for (p of productosConAlerta().porVencer; track p.id) {
+              <div class="flex items-center gap-4 px-5 py-3 hover:bg-amber-50/40 transition-colors">
+                <div class="flex-1 min-w-0">
+                  <p class="font-bold text-text-main text-sm">{{ p.nombre }}</p>
+                  <p class="text-xs text-text-secondary">{{ p.principioActivo }} · Lote {{ p.lote.numero }}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-xs text-amber-600 font-bold">Vence {{ formatFecha(p.lote.fechaVencimiento) }}</p>
+                  <p class="text-xs text-text-secondary">Stock: {{ p.stockActual }} uds</p>
+                </div>
+                <span class="text-xs font-black px-2 py-1 rounded-full bg-amber-100 text-amber-700 shrink-0">PRÓXIMO</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Sin stock -->
+      @if (productosConAlerta().sinStock.length > 0) {
+        <div class="bg-surface border border-red-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-3 px-5 py-3 bg-red-50 border-b border-red-100">
+            <span class="material-symbols-outlined text-red-600">remove_shopping_cart</span>
+            <h3 class="font-bold text-red-700 text-sm">Sin Stock ({{ productosConAlerta().sinStock.length }})</h3>
+            <p class="text-xs text-red-600 ml-auto">Requieren reabastecimiento urgente</p>
+          </div>
+          <div class="divide-y divide-border-color">
+            @for (p of productosConAlerta().sinStock; track p.id) {
+              <div class="flex items-center gap-4 px-5 py-3 hover:bg-red-50/40 transition-colors">
+                <div class="flex-1 min-w-0">
+                  <p class="font-bold text-text-main text-sm">{{ p.nombre }}</p>
+                  <p class="text-xs text-text-secondary">{{ p.principioActivo }} · {{ p.ubicacion }}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-xs text-red-600 font-bold">Stock mínimo: {{ p.stockMinimo }}</p>
+                  <p class="text-xs text-text-secondary">{{ p.laboratorio }}</p>
+                </div>
+                <span class="text-xs font-black px-2 py-1 rounded-full bg-red-100 text-red-700 shrink-0">0 uds</span>
+                <button (click)="abrirAjuste(p, $event)"
+                        class="shrink-0 h-8 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-bold transition-colors">
+                  Ingresar
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Stock bajo -->
+      @if (productosConAlerta().stockBajo.length > 0) {
+        <div class="bg-surface border border-amber-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="flex items-center gap-3 px-5 py-3 bg-amber-50 border-b border-amber-100">
+            <span class="material-symbols-outlined text-amber-600">production_quantity_limits</span>
+            <h3 class="font-bold text-amber-700 text-sm">Stock Bajo ({{ productosConAlerta().stockBajo.length }})</h3>
+            <p class="text-xs text-amber-600 ml-auto">Stock por debajo del mínimo configurado</p>
+          </div>
+          <div class="divide-y divide-border-color">
+            @for (p of productosConAlerta().stockBajo; track p.id) {
+              <div class="flex items-center gap-4 px-5 py-3 hover:bg-amber-50/40 transition-colors">
+                <div class="flex-1 min-w-0">
+                  <p class="font-bold text-text-main text-sm">{{ p.nombre }}</p>
+                  <p class="text-xs text-text-secondary">{{ p.principioActivo }} · {{ p.ubicacion }}</p>
+                </div>
+                <!-- Barra de stock -->
+                <div class="w-32 shrink-0">
+                  <div class="flex justify-between text-[10px] mb-1">
+                    <span class="text-amber-600 font-bold">{{ p.stockActual }} uds</span>
+                    <span class="text-text-secondary">mín. {{ p.stockMinimo }}</span>
+                  </div>
+                  <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-amber-400 rounded-full transition-all"
+                         [style.width.%]="Math.min(100, (p.stockActual / p.stockMinimo) * 100)"></div>
+                  </div>
+                </div>
+                <button (click)="abrirAjuste(p, $event)"
+                        class="shrink-0 h-8 px-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-bold transition-colors">
+                  Reponer
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (productosConAlerta().vencidos.length === 0 && productosConAlerta().porVencer.length === 0 && productosConAlerta().sinStock.length === 0 && productosConAlerta().stockBajo.length === 0) {
+        <div class="bg-surface border border-border-color rounded-xl p-16 text-center shadow-sm">
+          <span class="material-symbols-outlined text-[56px] text-emerald-400 block mb-3">verified</span>
+          <p class="font-bold text-text-main text-lg">¡Sin alertas!</p>
+          <p class="text-text-secondary text-sm mt-1">Todo el inventario está en orden.</p>
+        </div>
+      }
+
+    </div>
+  }
+
+  @if (vistaActiva() === 'inventario') {
+
+  <!-- ── KPI cards ─────────────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+    <div class="bg-surface border border-border-color rounded-xl p-4 flex flex-col gap-1 shadow-sm">
+      <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Total SKUs</span>
+      <span class="text-2xl font-black text-text-main">{{ kpis().totalSkus }}</span>
+    </div>
+
+    <div class="bg-surface border border-border-color rounded-xl p-4 flex flex-col gap-1 shadow-sm col-span-2 md:col-span-1">
+      <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Valor Inventario</span>
+      <span class="text-xl font-black text-text-main">{{ formatSol(kpis().valorInventario) }}</span>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col gap-1 shadow-sm">
+      <span class="text-xs font-semibold text-amber-600 uppercase tracking-wide">Stock Bajo</span>
+      <span class="text-2xl font-black text-amber-600">{{ kpis().stockBajo }}</span>
+    </div>
+
+    <div class="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col gap-1 shadow-sm">
+      <span class="text-xs font-semibold text-red-600 uppercase tracking-wide">Sin Stock</span>
+      <span class="text-2xl font-black text-red-600">{{ kpis().sinStock }}</span>
+    </div>
+
+    <div class="bg-red-50 border border-red-100 rounded-xl p-4 flex flex-col gap-1 shadow-sm">
+      <span class="text-xs font-semibold text-red-600 uppercase tracking-wide">Vencidos</span>
+      <span class="text-2xl font-black text-red-600">{{ kpis().vencidos }}</span>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col gap-1 shadow-sm">
+      <span class="text-xs font-semibold text-amber-600 uppercase tracking-wide">Por Vencer</span>
+      <span class="text-2xl font-black text-amber-600">{{ kpis().porVencer }}</span>
+    </div>
+
+  </div>
+
+  <!-- ── Filtros ────────────────────────────────────────────────────────────── -->
+  <div class="bg-surface border border-border-color rounded-xl p-4 shadow-sm flex flex-col gap-3">
+    <div class="flex flex-col lg:flex-row gap-3">
+
+      <!-- Búsqueda -->
+      <div class="relative flex-1">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-[20px]">search</span>
+        <input [(ngModel)]="busqueda"
+               [ngModel]="busqueda()"
+               (ngModelChange)="busqueda.set($event)"
+               type="text"
+               placeholder="Nombre, principio activo, código de barras o lote…"
+               class="w-full pl-10 pr-4 h-10 border border-border-color bg-background-light rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+      </div>
+
+      <!-- Categoría -->
+      <select [ngModel]="filtroCategoria()"
+              (ngModelChange)="filtroCategoria.set($event)"
+              class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary focus:border-primary min-w-[160px]">
+        <option value="todas">Todas las categorías</option>
+        @for (cat of categorias(); track cat) {
+          <option [value]="cat">{{ cat }}</option>
+        }
+      </select>
+
+      <!-- Laboratorio -->
+      <select [ngModel]="filtroLab()"
+              (ngModelChange)="filtroLab.set($event)"
+              class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary focus:border-primary min-w-[150px]">
+        <option value="todos">Todos los laboratorios</option>
+        @for (lab of laboratorios(); track lab) {
+          <option [value]="lab">{{ lab }}</option>
+        }
+      </select>
+
+      <!-- Vencimiento -->
+      <select [ngModel]="filtroAlerta()"
+              (ngModelChange)="filtroAlerta.set($event)"
+              class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary focus:border-primary min-w-[150px]">
+        <option value="todos">Todos los estados</option>
+        <option value="VENCIDO">Vencidos</option>
+        <option value="POR_VENCER">Por vencer (30d)</option>
+        <option value="OK">Vigentes</option>
+      </select>
+
+      <!-- Stock -->
+      <select [ngModel]="filtroStock()"
+              (ngModelChange)="filtroStock.set($event)"
+              class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary focus:border-primary min-w-[140px]">
+        <option value="todos">Todo el stock</option>
+        <option value="bajo">Stock bajo / sin stock</option>
+        <option value="normal">Stock normal</option>
+      </select>
+
+      <!-- Limpiar -->
+      <button (click)="limpiarFiltros()"
+              class="h-10 px-4 border border-border-color bg-white hover:bg-gray-50 text-text-secondary rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shrink-0">
+        <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>
+        Limpiar
+      </button>
+    </div>
+
+    <!-- Contador resultados -->
+    <p class="text-xs text-text-secondary">
+      Mostrando <span class="font-bold text-text-main">{{ productosFiltrados().length }}</span>
+      de <span class="font-bold text-text-main">{{ productos().length }}</span> productos
+    </p>
+  </div>
+
+  <!-- ── Contenido principal: tabla + panel detalle ─────────────────────────── -->
+  <div class="flex gap-4 items-start">
+
+    <!-- Tabla -->
+    <div class="flex-1 bg-surface border border-border-color rounded-xl shadow-sm overflow-hidden min-w-0">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-gray-50 border-b border-border-color">
+            <tr class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+              <th class="px-4 py-3 min-w-[260px]">Producto</th>
+              <th class="px-4 py-3">Lote / Vencimiento</th>
+              <th class="px-4 py-3">Ubicación</th>
+              <th class="px-4 py-3 text-right min-w-[100px]">Stock</th>
+              <th class="px-4 py-3 text-right">Compra / Venta</th>
+              <th class="px-4 py-3 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color text-sm">
+
+            @if (cargando()) {
+              @for (s of [1,2,3,4,5,6]; track s) {
+                <tr>
+                  <td class="px-4 py-3.5"><div class="flex items-center gap-3"><div class="size-10 rounded-lg fs-skeleton shrink-0"></div><div class="flex flex-col gap-1.5"><div class="fs-skeleton h-4 w-40 rounded"></div><div class="fs-skeleton h-3 w-28 rounded"></div></div></div></td>
+                  <td class="px-4 py-3.5"><div class="fs-skeleton h-4 w-24 rounded"></div></td>
+                  <td class="px-4 py-3.5"><div class="fs-skeleton h-4 w-20 rounded"></div></td>
+                  <td class="px-4 py-3.5"><div class="fs-skeleton h-4 w-10 rounded ml-auto"></div></td>
+                  <td class="px-4 py-3.5"><div class="fs-skeleton h-4 w-16 rounded ml-auto"></div></td>
+                  <td class="px-4 py-3.5"><div class="fs-skeleton h-4 w-12 rounded mx-auto"></div></td>
+                </tr>
+              }
+            } @else if (productosFiltrados().length === 0) {
+              <tr>
+                <td colspan="6" class="px-4 py-16 text-center">
+                  <span class="material-symbols-outlined text-[48px] text-text-secondary/30 block mb-2">inventory_2</span>
+                  <p class="text-text-secondary font-medium">No se encontraron productos</p>
+                  <button (click)="limpiarFiltros()" class="mt-2 text-primary text-sm font-semibold hover:underline">
+                    Limpiar filtros
+                  </button>
+                </td>
+              </tr>
+            }
+
+            @for (p of productosFiltrados(); track p.id) {
+              <tr (click)="verDetalle(p)"
+                  class="hover:bg-gray-50 transition-colors cursor-pointer group"
+                  [class.bg-primary/5]="productoSeleccionado()?.id === p.id">
+
+                <!-- Producto -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <div class="size-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 text-text-secondary">
+                      <span class="material-symbols-outlined text-[20px]">medication</span>
+                    </div>
+                    <div class="flex flex-col min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="font-bold text-text-main truncate">{{ p.nombre }}</span>
+                        @if (p.controlado) {
+                          <span class="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Controlado</span>
+                        }
+                        @if (p.requiereReceta) {
+                          <span class="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-primary-100 text-primary-700">Receta</span>
+                        }
+                      </div>
+                      <span class="text-xs text-text-secondary truncate">{{ p.principioActivo }} · {{ p.presentacion }}</span>
+                      <span class="text-[10px] text-text-secondary/70 font-mono">{{ p.codigo }}</span>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Lote / Vencimiento -->
+                <td class="px-4 py-3">
+                  <div class="flex flex-col gap-1">
+                    <span class="text-xs font-mono text-text-secondary">{{ p.lote.numero }}</span>
+                    <span class="text-xs text-text-secondary">{{ formatFecha(p.lote.fechaVencimiento) }}</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold w-fit"
+                          [class]="badgeAlerta(p).clase">
+                      {{ badgeAlerta(p).label }}
+                    </span>
+                  </div>
+                </td>
+
+                <!-- Ubicación -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-1.5 text-text-secondary">
+                    <span class="material-symbols-outlined text-[16px]">pin_drop</span>
+                    <span class="text-sm font-medium text-text-main">{{ p.ubicacion }}</span>
+                  </div>
+                  <span class="text-xs text-text-secondary">{{ p.laboratorio }}</span>
+                </td>
+
+                <!-- Stock -->
+                <td class="px-4 py-3 text-right">
+                  <div class="flex flex-col items-end gap-0.5">
+                    <div class="flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[16px]" [class]="colorIconoStock(p)">{{ iconoStock(p) }}</span>
+                      <span [class]="colorStock(p)">{{ p.stockActual }}</span>
+                    </div>
+                    <span class="text-[10px] text-text-secondary">mín. {{ p.stockMinimo }}</span>
+                  </div>
+                </td>
+
+                <!-- Precios -->
+                <td class="px-4 py-3 text-right">
+                  <div class="flex flex-col items-end">
+                    <span class="text-xs text-text-secondary">{{ formatSol(p.precioCompra) }}</span>
+                    <span class="font-bold text-text-main">{{ formatSol(p.precioVenta) }}</span>
+                    <span class="text-[10px] text-emerald-600 font-semibold">{{ margen(p) }}% margen</span>
+                  </div>
+                </td>
+
+                <!-- Acciones -->
+                <td class="px-4 py-3 text-center">
+                  <div class="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button (click)="abrirAjuste(p, $event)"
+                            title="Ajustar stock"
+                            class="p-1.5 hover:bg-primary/10 rounded-lg text-text-secondary hover:text-primary transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">tune</span>
+                    </button>
+                    <button (click)="abrirEditar(p, $event)"
+                            title="Editar producto"
+                            class="p-1.5 hover:bg-amber-50 rounded-lg text-text-secondary hover:text-amber-600 transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button (click)="verDetalle(p); $event.stopPropagation()"
+                            title="Ver detalle"
+                            class="p-1.5 hover:bg-gray-100 rounded-lg text-text-secondary hover:text-text-main transition-colors">
+                      <span class="material-symbols-outlined text-[18px]">info</span>
+                    </button>
+                  </div>
+                </td>
+
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Panel detalle lateral ─────────────────────────────────────────────── -->
+    @if (productoSeleccionado(); as p) {
+      <div class="w-80 shrink-0 bg-surface border border-border-color rounded-xl shadow-sm overflow-hidden sticky top-4">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-border-color bg-gray-50">
+          <h3 class="font-bold text-text-main text-sm">Detalle del Producto</h3>
+          <div class="flex items-center gap-1">
+            <button (click)="abrirEditar(p, $event)"
+                    title="Editar"
+                    class="size-7 flex items-center justify-center rounded-lg hover:bg-amber-100 text-text-secondary hover:text-amber-600 transition-colors">
+              <span class="material-symbols-outlined text-[16px]">edit</span>
+            </button>
+            <button (click)="cerrarDetalle()"
+                    class="size-7 flex items-center justify-center rounded-lg hover:bg-gray-200 text-text-secondary transition-colors">
+              <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="p-4 flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-220px)]">
+
+          <!-- Nombre e identificación -->
+          <div class="flex flex-col gap-1">
+            <div class="flex items-start gap-2">
+              <div class="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-primary text-[20px]">medication</span>
+              </div>
+              <div>
+                <p class="font-black text-text-main text-sm leading-tight">{{ p.nombre }}</p>
+                <p class="text-xs text-text-secondary">{{ p.principioActivo }}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1">
+              @if (p.controlado) {
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Controlado</span>
+              }
+              @if (p.requiereReceta) {
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-100 text-primary-700">Requiere receta</span>
+              }
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-text-secondary">{{ p.categoria }}</span>
+            </div>
+          </div>
+
+          <!-- Código de barras -->
+          <div class="bg-gray-50 rounded-lg px-3 py-2">
+            <p class="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-0.5">Código</p>
+            <p class="font-mono text-sm text-text-main font-bold">{{ p.codigo }}</p>
+          </div>
+
+          <!-- Lotes en stock (todos, FEFO primero) -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Lotes en stock</p>
+              @if (unidadesVencidas(p) > 0) {
+                <button (click)="irAMermas()" class="text-[11px] font-bold text-accent-red-ink hover:underline flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[13px]">delete_sweep</span>Dar de baja
+                </button>
+              }
+            </div>
+            @if (p.lotes.length === 0) {
+              <p class="text-xs text-text-secondary bg-gray-50 rounded-lg px-3 py-2">Sin lotes con stock.</p>
+            } @else {
+              <div class="flex flex-col gap-1.5">
+                @for (lt of p.lotes; track lt.numero; let i = $index) {
+                  <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border"
+                       [class]="estadoLote(lt.fechaVencimiento) === 'VENCIDO' ? 'border-red-200 bg-red-50' : estadoLote(lt.fechaVencimiento) === 'POR_VENCER' ? 'border-amber-200 bg-amber-50' : 'border-border-color bg-gray-50'">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-mono text-xs font-bold text-text-main">{{ lt.numero }}</span>
+                        @if (i === 0) { <span class="text-[11px] font-semibold px-1 py-0.5 rounded bg-primary-100 text-primary-700">FEFO</span> }
+                      </div>
+                      <span class="text-[11px] text-text-secondary">Vence {{ formatFecha(lt.fechaVencimiento) }}</span>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <span class="text-sm font-bold text-text-main tabular-nums">{{ lt.cantidad }}</span>
+                      <span class="block text-[10px] font-bold"
+                            [class]="estadoLote(lt.fechaVencimiento) === 'VENCIDO' ? 'text-accent-red-ink' : estadoLote(lt.fechaVencimiento) === 'POR_VENCER' ? 'text-amber-600' : 'text-emerald-600'">
+                        {{ estadoLote(lt.fechaVencimiento) === 'VENCIDO' ? 'Vencido' : estadoLote(lt.fechaVencimiento) === 'POR_VENCER' ? 'Por vencer' : 'Vigente' }}
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <!-- Stock -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Stock</p>
+              @if (p.stockActual <= p.stockMinimo) {
+                <button (click)="irAReposicion()" class="text-[11px] font-bold text-primary hover:underline flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[13px]">add_shopping_cart</span>Reponer
+                </button>
+              }
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-gray-50 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary mb-0.5">Actual</p>
+                <p class="text-xl font-black" [class]="colorStock(p)">{{ p.stockActual }}</p>
+              </div>
+              <div class="bg-gray-50 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary mb-0.5">Mínimo</p>
+                <p class="text-xl font-black text-text-main">{{ p.stockMinimo }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Precios -->
+          <div>
+            <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">Precios</p>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-gray-50 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary mb-0.5">Compra</p>
+                <p class="text-sm font-bold text-text-main">{{ formatSol(p.precioCompra) }}</p>
+              </div>
+              <div class="bg-gray-50 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary mb-0.5">Venta</p>
+                <p class="text-sm font-bold text-primary">{{ formatSol(p.precioVenta) }}</p>
+              </div>
+            </div>
+            <div class="mt-2 bg-emerald-50 rounded-lg px-3 py-2 flex items-center justify-between">
+              <span class="text-xs text-emerald-700 font-semibold">Margen de ganancia</span>
+              <span class="text-sm font-black text-emerald-700">{{ margen(p) }}%</span>
+            </div>
+          </div>
+
+          <!-- Info adicional -->
+          <div class="text-xs text-text-secondary space-y-1 border-t border-border-color pt-3">
+            @if (etiquetaFormaDe(p)) {
+              <div class="flex justify-between">
+                <span>Forma farmacéutica</span>
+                <span class="text-text-main font-medium">{{ etiquetaFormaDe(p) }}</span>
+              </div>
+            }
+            <div class="flex justify-between">
+              <span>Presentación</span>
+              <span class="text-text-main font-medium">{{ p.presentacion }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Laboratorio</span>
+              <span class="text-text-main font-medium">{{ p.laboratorio }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Ubicación</span>
+              <span class="text-text-main font-medium">{{ p.ubicacion }}</span>
+            </div>
+          </div>
+
+          <!-- Disponibilidad en las otras boticas -->
+          <div>
+            <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">En otras boticas</p>
+            @if (cargandoDisponibilidad()) {
+              <div class="flex flex-col gap-1.5">
+                @for (s of [1,2]; track s) { <div class="fs-skeleton h-8 w-full rounded-lg"></div> }
+              </div>
+            } @else if (otrasConStock().length === 0) {
+              <p class="text-[11px] text-text-secondary bg-background-light rounded-lg px-3 py-2.5">
+                Ninguna otra sede tiene stock vendible de este producto.
+              </p>
+            } @else {
+              <div class="flex flex-col gap-1.5">
+                @for (d of otrasConStock(); track d.sucursalId) {
+                  <div class="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                    <span class="material-symbols-outlined text-[16px] text-emerald-600 shrink-0">storefront</span>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs font-bold text-text-main truncate">{{ d.nombre }}</p>
+                      @if (d.telefono) {
+                        <p class="text-[10px] text-text-secondary truncate">{{ d.telefono }}</p>
+                      }
+                    </div>
+                    <span class="text-xs font-black text-emerald-700 tabular-nums shrink-0">{{ d.vendible }} uds</span>
+                  </div>
+                }
+              </div>
+              <p class="text-[10px] text-text-secondary mt-1.5">
+                Unidades vendibles (sin contar lotes vencidos). Para traerlas, usa Transferencias.
+              </p>
+            }
+          </div>
+
+          <!-- Historial de movimientos -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide">Últimos movimientos</p>
+              <button (click)="mostrarHistorial.set(!mostrarHistorial())"
+                      class="text-[10px] text-primary font-semibold hover:underline">
+                {{ mostrarHistorial() ? 'Ocultar' : 'Ver todos' }}
+              </button>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              @for (mov of (mostrarHistorial() ? movimientos() : movimientos().slice(0,3)); track $index) {
+                <div class="flex items-start gap-2.5">
+                  <div class="size-6 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                       [class]="colorMovimiento(mov.tipo)">
+                    <span class="material-symbols-outlined text-[13px]">{{ iconoMovimiento(mov.tipo) }}</span>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1">
+                      <span class="text-xs font-bold text-text-main">
+                        {{ mov.tipo === 'INGRESO' ? '+' : mov.tipo === 'SALIDA' ? '-' : '=' }}{{ mov.cantidad }} uds
+                      </span>
+                      <span class="text-[10px] text-text-secondary shrink-0">→ {{ mov.stockResultante }}</span>
+                    </div>
+                    <p class="text-[10px] text-text-secondary truncate" [title]="mov.motivo">{{ mov.motivo }}</p>
+                    <p class="text-[11px] text-text-secondary/60">{{ mov.fecha }} · {{ mov.usuario }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          <div class="flex gap-2">
+            <button (click)="abrirAjuste(p, $event)"
+                    class="flex-1 h-9 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
+              <span class="material-symbols-outlined text-[18px]">tune</span>
+              Ajustar Stock
+            </button>
+            <button (click)="abrirEditar(p, $event)"
+                    class="flex-1 h-9 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-colors">
+              <span class="material-symbols-outlined text-[18px]">edit</span>
+              Editar
+            </button>
+          </div>
+
+        </div>
+      </div>
+    }
+  </div>
+
+  } <!-- fin @if vistaActiva === 'inventario' -->
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- Modal: Editar Producto                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+@if (mostrarFormEditar()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+       (click)="cerrarEditar()">
+    <div class="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+         (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-border-color">
+        <div class="flex items-center gap-3">
+          <div class="size-9 rounded-lg bg-amber-100 flex items-center justify-center">
+            <span class="material-symbols-outlined text-amber-600">edit</span>
+          </div>
+          <div>
+            <h3 class="font-bold text-text-main">Editar Producto</h3>
+            @if (productoEditando(); as p) {
+              <p class="text-xs text-text-secondary">{{ p.nombre }}</p>
+            }
+          </div>
+        </div>
+        <button (click)="cerrarEditar()"
+                class="size-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-text-secondary">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="overflow-y-auto flex-1 px-6 py-4 flex flex-col gap-5">
+
+        <div>
+          <p class="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Identificación</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1 col-span-2">
+              <label class="text-xs font-semibold text-text-secondary">Nombre comercial *</label>
+              <input [(ngModel)]="formEditar.nombre" type="text"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Principio activo</label>
+              <input [(ngModel)]="formEditar.principioActivo" type="text"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Presentación base</label>
+              <input [(ngModel)]="formEditar.presentacion" type="text"
+                     placeholder="Unidad"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+              <span class="text-[11px] text-text-secondary">Nombre de la unidad mínima de venta.</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Categoría</label>
+              <input [(ngModel)]="formEditar.categoria" type="text"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Laboratorio</label>
+              <input [(ngModel)]="formEditar.laboratorio" type="text"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="flex flex-col gap-1 col-span-2">
+              <label class="text-xs font-semibold text-text-secondary">Ubicación</label>
+              <input [(ngModel)]="formEditar.ubicacion" type="text"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+          </div>
+          <div class="flex gap-6 mt-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input [(ngModel)]="formEditar.requiereReceta" type="checkbox"
+                     class="rounded border-gray-300 text-primary" />
+              <span class="text-sm text-text-main font-medium">Requiere receta</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input [(ngModel)]="formEditar.controlado" type="checkbox"
+                     class="rounded border-gray-300 text-primary" />
+              <span class="text-sm text-text-main font-medium">Producto controlado</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Precios y control</p>
+          <div class="grid grid-cols-3 gap-3">
+            <!-- SOLO LECTURA: el costo es el promedio ponderado que calculan
+                 las compras. Editarlo a mano falsearía el margen de Finanzas.
+                 Antes era un input que se podía escribir y se descartaba en
+                 silencio al guardar. -->
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Costo promedio (S/)</label>
+              <div class="h-9 px-3 rounded-lg bg-background-light border border-border-color flex items-center text-sm text-text-secondary tabular-nums">
+                {{ formatSol(formEditar.precioCompra ?? 0) }}
+              </div>
+              <span class="text-[11px] text-text-secondary">Lo calculan las compras.</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Precio venta (S/) *</label>
+              <input [(ngModel)]="formEditar.precioVenta" type="number" min="0.01" step="0.01"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+              <span class="text-[11px] text-text-secondary">Debe ser mayor a 0.</span>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Stock mínimo</label>
+              <input [(ngModel)]="formEditar.stockMinimo" type="number" min="0"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ PRESENTACIONES: caja / blíster / unidad ═══ -->
+        <div>
+          <p class="text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Formas de venta</p>
+          <p class="text-[11px] text-text-secondary mb-3">
+            Lo que el cajero podrá elegir en el POS. El stock se guarda siempre en
+            <strong>{{ unidadBase() }}</strong>; el factor dice cuántas contiene cada forma.
+          </p>
+
+          <div class="border border-border-color rounded-xl divide-y divide-border-color overflow-hidden mb-3">
+            @for (pr of presentaciones(); track pr.id) {
+              <div class="flex items-center gap-3 px-3 py-2.5">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-bold text-text-main truncate">
+                    {{ pr.nombre }}
+                    @if (pr.esBase) {
+                      <span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">BASE</span>
+                    }
+                  </p>
+                  <p class="text-[11px] text-text-secondary">
+                    {{ pr.factor }} {{ unidadBase() }}{{ pr.factor === 1 ? '' : 's' }}
+                  </p>
+                </div>
+                <span class="text-sm font-black text-text-main tabular-nums shrink-0">{{ formatSol(pr.precioVenta) }}</span>
+                @if (!pr.esBase) {
+                  <button type="button" (click)="hacerBase(pr)"
+                          title="Convertir en unidad base (solo si el producto no tiene stock ni ventas)"
+                          class="h-8 px-2 rounded-lg text-[11px] font-bold text-text-secondary/70 hover:bg-primary/5 hover:text-primary transition-colors shrink-0">
+                    Hacer base
+                  </button>
+                  <button type="button" (click)="quitarPresentacion(pr)" title="Quitar"
+                          class="size-8 rounded-lg flex items-center justify-center text-text-secondary/60 hover:bg-red-50 hover:text-accent-red-ink transition-colors shrink-0">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                } @else {
+                  <span class="size-8 shrink-0"></span>
+                }
+              </div>
+            } @empty {
+              <div class="px-3 py-4 text-center text-xs text-text-secondary">
+                Sin presentaciones. Añade al menos la unidad mínima.
+              </div>
+            }
+          </div>
+
+          <div class="grid grid-cols-12 gap-2 items-end">
+            <div class="col-span-5 flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Nombre</label>
+              <input [ngModel]="presNombre()" (ngModelChange)="presNombre.set($event)" type="text"
+                     placeholder="Caja, Blíster…"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="col-span-3 flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Contiene</label>
+              <input [ngModel]="presFactor()" (ngModelChange)="presFactor.set($event)" type="number" min="1" step="1"
+                     placeholder="10"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="col-span-2 flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Precio</label>
+              <input [ngModel]="presPrecio()" (ngModelChange)="presPrecio.set($event)" type="number" min="0.01" step="0.01"
+                     placeholder="0.00"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="col-span-2">
+              <button type="button" (click)="agregarPresentacion()" [disabled]="guardandoPres()"
+                      class="w-full h-9 rounded-lg bg-primary hover:bg-primary-700 text-white text-sm font-bold transition-colors disabled:opacity-40">
+                Añadir
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="flex gap-3 items-center justify-between px-6 py-4 border-t border-border-color bg-gray-50 rounded-b-2xl">
+        @if (esAdmin() && productoEditando(); as pe) {
+          <button (click)="pedirDesactivar(pe)"
+                  class="h-9 px-4 border border-border-color bg-white hover:bg-amber-50 text-amber-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+            <span class="material-symbols-outlined text-[18px]">visibility_off</span>
+            Desactivar
+          </button>
+          <button (click)="pedirEliminar(pe)"
+                  class="h-9 px-3 text-sm font-semibold text-text-secondary hover:text-accent-red-ink transition-colors">
+            Eliminar
+          </button>
+        } @else {
+          <span></span>
+        }
+        <div class="flex gap-3">
+          <button (click)="cerrarEditar()"
+                  class="h-9 px-5 border border-border-color bg-white hover:bg-gray-50 text-text-main rounded-lg text-sm font-semibold transition-colors">
+            Cancelar
+          </button>
+          <button (click)="guardarEdicion()"
+                  [disabled]="!formEditar.nombre"
+                  class="h-9 px-5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-bold transition-colors">
+            Guardar Cambios
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- Modal: Ajuste de Stock                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+@if (mostrarFormAjuste(); as show) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+       (click)="cerrarAjuste()">
+    <div class="bg-surface rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+         (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-border-color">
+        <div>
+          <h3 class="font-bold text-text-main">Ajuste de Stock</h3>
+          @if (productoAjuste(); as p) {
+            <p class="text-xs text-text-secondary">{{ p.nombre }}</p>
+          }
+        </div>
+        <button (click)="cerrarAjuste()"
+                class="size-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-text-secondary">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 py-4 flex flex-col gap-4">
+
+        <!-- Stock actual -->
+        @if (productoAjuste(); as p) {
+          <div class="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+            <span class="material-symbols-outlined text-[28px]" [class]="colorIconoStock(p)">{{ iconoStock(p) }}</span>
+            <div>
+              <p class="text-xs text-text-secondary">Stock actual</p>
+              <p class="text-2xl font-black" [class]="colorStock(p)">{{ p.stockActual }}</p>
+            </div>
+            <div class="ml-auto text-right">
+              <p class="text-xs text-text-secondary">Stock mínimo</p>
+              <p class="text-lg font-bold text-text-main">{{ p.stockMinimo }}</p>
+            </div>
+          </div>
+        }
+
+        <!-- Tipo de ajuste -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-semibold text-text-secondary">Tipo de movimiento</label>
+          <div class="grid grid-cols-3 gap-2">
+            @for (tipo of ['INGRESO', 'SALIDA', 'AJUSTE']; track tipo) {
+              <button (click)="formAjuste.tipo = $any(tipo)"
+                      class="h-9 rounded-lg text-sm font-bold border transition-colors"
+                      [class]="formAjuste.tipo === tipo
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-text-secondary border-border-color hover:bg-gray-50'">
+                {{ tipo === 'INGRESO' ? '↑ Ingreso' : tipo === 'SALIDA' ? '↓ Salida' : '⟳ Ajuste' }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Cantidad -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-semibold text-text-secondary">
+            {{ formAjuste.tipo === 'AJUSTE' ? 'Nuevo stock total' : 'Cantidad' }}
+          </label>
+          <input [(ngModel)]="formAjuste.cantidad" type="number" min="0" placeholder="0"
+                 class="h-10 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+        </div>
+
+        <!-- Lote (solo ingreso) -->
+        @if (formAjuste.tipo === 'INGRESO') {
+          <div class="grid grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">N° de lote</label>
+              <input [(ngModel)]="formAjuste.loteNumero" type="text" placeholder="A-1234"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs font-semibold text-text-secondary">Fecha vencimiento</label>
+              <input [(ngModel)]="formAjuste.loteFechaVencimiento" type="date"
+                     class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+            </div>
+          </div>
+        }
+
+        <!-- Motivo -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-semibold text-text-secondary">Motivo (opcional)</label>
+          <input [(ngModel)]="formAjuste.motivo" type="text" placeholder="Ej: Compra a proveedor, merma, inventario físico…"
+                 class="h-9 px-3 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="flex gap-3 justify-end px-6 py-4 border-t border-border-color bg-gray-50 rounded-b-2xl">
+        <button (click)="cerrarAjuste()"
+                class="h-9 px-5 border border-border-color bg-white hover:bg-gray-50 text-text-main rounded-lg text-sm font-semibold transition-colors">
+          Cancelar
+        </button>
+        <button (click)="aplicarAjuste()"
+                [disabled]="!formAjuste.cantidad"
+                class="h-9 px-5 bg-primary hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-bold transition-colors">
+          Aplicar Ajuste
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- ── Confirmar desactivar / eliminar medicamento ────────────────────── -->
+@if (confirmarAccion(); as accion) {
+  @if (productoAccion(); as p) {
+    <div class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cancelarAccion()" role="dialog" aria-modal="true">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" (click)="$event.stopPropagation()">
+        <div class="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
+          <div class="size-12 rounded-2xl flex items-center justify-center"
+               [class]="accion === 'eliminar' ? 'bg-red-50 text-accent-red-ink' : 'bg-amber-50 text-amber-600'">
+            <span class="material-symbols-outlined text-[26px]">
+              {{ accion === 'eliminar' ? 'delete_forever' : 'visibility_off' }}
+            </span>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-text-main">
+              {{ accion === 'eliminar' ? '¿Eliminar definitivamente?' : '¿Desactivar este medicamento?' }}
+            </h3>
+            <p class="text-sm font-bold text-text-main mt-2">{{ p.nombre }}</p>
+            <p class="text-xs text-text-secondary">{{ p.codigo }}</p>
+          </div>
+          @if (accion === 'eliminar') {
+            <p class="text-xs text-text-secondary leading-snug">
+              Solo funciona si nunca se vendió ni tuvo stock. Si ya tiene historial, el sistema
+              lo va a rechazar: en ese caso usa <strong>Desactivar</strong>. No se puede deshacer.
+            </p>
+          } @else {
+            <p class="text-xs text-text-secondary leading-snug">
+              Deja de aparecer en el catálogo y en el POS, pero <strong>su historial se conserva</strong>.
+              Se puede volver a activar.
+            </p>
+          }
+        </div>
+        <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl">
+          <button type="button" (click)="cancelarAccion()"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">Cancelar</button>
+          <button type="button" (click)="ejecutarAccion()" [disabled]="procesandoAccion()"
+                  class="h-10 px-5 rounded-lg text-sm font-bold text-white transition-colors disabled:opacity-40 flex items-center gap-2"
+                  [class]="accion === 'eliminar' ? 'bg-accent-red hover:bg-red-600' : 'bg-amber-600 hover:bg-amber-700'">
+            @if (procesandoAccion()) {
+              <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              Procesando…
+            } @else {
+              {{ accion === 'eliminar' ? 'Sí, eliminar' : 'Sí, desactivar' }}
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}

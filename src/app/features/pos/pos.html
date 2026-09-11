@@ -1,0 +1,1152 @@
+<!-- ================================================================
+     POS — altura exacta via :host en pos.scss (sin calc en template)
+     Estructura: flex-row | panel-productos flex-1 | panel-cobro ancho fijo
+     ================================================================ -->
+<div class="relative h-full flex flex-row gap-3 overflow-hidden">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PANEL IZQUIERDO — Búsqueda + Categorías + Grid de productos
+       ══════════════════════════════════════════════════════════════ -->
+  <div class="flex-1 flex flex-col bg-surface rounded-xl shadow-soft border border-border-color overflow-hidden min-w-0">
+
+    <!-- Cabecera compacta (shrink-0) -->
+    <div class="px-4 py-3 bg-white border-b border-border-color shrink-0">
+
+      <!-- Fila 1: info terminal + buscador -->
+      <div class="flex items-center gap-2 mb-2.5">
+
+        <!-- Badge terminal (solo xl+) -->
+        <div class="hidden xl:flex items-center gap-2 shrink-0">
+          <span class="size-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill text-[18px]">point_of_sale</span>
+          </span>
+          <span class="text-[10px] font-bold px-2 py-1 bg-slate-100 rounded text-slate-500">{{ terminal() }}</span>
+        </div>
+
+        <!-- Buscador (flex-1) -->
+        <div class="flex-1 relative group">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span class="material-symbols-outlined text-text-secondary group-focus-within:text-primary transition-colors text-[20px]" aria-hidden="true">
+              barcode_scanner
+            </span>
+          </div>
+          <input
+            #busquedaInputEl
+            type="text"
+            aria-label="Buscar producto o escanear código de barras"
+            placeholder="Escanear código de barras o buscar producto… (F1)"
+            class="block w-full pl-10 pr-12 py-2.5 bg-background-light border border-border-color rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/30 transition-all"
+            [ngModel]="busquedaInput()"
+            (ngModelChange)="busquedaInput.set($event)"
+            (keydown.enter)="onEnterBuscador()"
+          />
+          <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+            <kbd class="bg-white border border-border-color rounded px-1.5 py-0.5 text-[10px] font-bold text-text-secondary">F1</kbd>
+          </div>
+        </div>
+
+        <!-- Badge cajero (solo lg+) -->
+        <span class="hidden lg:block shrink-0 text-[10px] font-bold px-2 py-1 bg-slate-100 rounded text-slate-600">
+          <span class="text-slate-400">CAJERO · </span>{{ operador() }}
+        </span>
+      </div>
+
+      <!-- Fila 2: Categorías (scroll horizontal) -->
+      <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        @for (c of categorias(); track c.id) {
+          <button
+            type="button"
+            (click)="seleccionarCategoria(c.id)"
+            class="px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 border"
+            [class.bg-primary]="categoriaActiva() === c.id"
+            [class.text-white]="categoriaActiva() === c.id"
+            [class.border-primary]="categoriaActiva() === c.id"
+            [class.bg-white]="categoriaActiva() !== c.id"
+            [class.text-text-secondary]="categoriaActiva() !== c.id"
+            [class.border-border-color]="categoriaActiva() !== c.id"
+          >
+            <span class="material-symbols-outlined text-[15px]" [class.icon-fill]="categoriaActiva() === c.id">{{ c.icono }}</span>
+            {{ c.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- ══════════ PLANTILLA REUTILIZABLE DE TARJETA DE PRODUCTO ══════════ -->
+    <ng-template #cardTpl let-p="p">
+      <button
+        type="button"
+        (click)="agregarProducto(p)"
+        [disabled]="!hayStock(p)"
+        class="text-left bg-white rounded-xl border border-border-color shadow-soft hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5 transition-all p-2.5 flex flex-col group relative focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-soft disabled:hover:border-border-color"
+      >
+        <!-- Línea superior: categoría • laboratorio • ubicación física -->
+        <div class="flex items-center flex-wrap gap-x-1 text-[9px] uppercase font-bold tracking-wider text-text-secondary mb-1">
+          <span>{{ p.categoria }}</span>
+          @if (p.laboratorio) {
+            <span class="text-text-secondary/40">•</span>
+            <span class="text-text-main">{{ p.laboratorio }}</span>
+          }
+          @if (p.ubicacion) {
+            <span class="text-text-secondary/40">•</span>
+            <span class="inline-flex items-center gap-0.5 text-primary">
+              <span class="material-symbols-outlined text-[11px]" aria-hidden="true">location_on</span>{{ p.ubicacion }}
+            </span>
+          }
+        </div>
+
+        <!-- Imagen compacta + badge de stock -->
+        <div class="h-16 bg-slate-50 rounded-lg mb-1.5 flex items-center justify-center relative overflow-hidden w-full">
+          @if (p.imagenUrl) {
+            <img loading="lazy" [alt]="p.nombre"
+              class="object-contain h-14 mix-blend-multiply group-hover:scale-110 transition-transform"
+              [src]="p.imagenUrl" (error)="onImgError($event)" />
+          } @else {
+            <span class="material-symbols-outlined text-slate-300 text-[34px]">medication</span>
+          }
+          <span
+            class="absolute top-1 right-1 text-white text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm"
+            [class]="stockBadgeColor(p)"
+          >{{ stockLabel(p) }}</span>
+        </div>
+
+        <!-- Nombre comercial en grande -->
+        <h3 class="font-black text-sm text-text-main leading-tight line-clamp-2 mb-0.5 min-h-[2.25rem]">
+          {{ p.nombre }}
+        </h3>
+
+        <!-- Principio activo (compuesto) -->
+        @if (p.principioActivo) {
+          <p class="text-[10px] text-text-secondary mb-1.5">
+            Compuesto: <span class="font-bold text-text-main">{{ p.principioActivo }}</span>
+          </p>
+        }
+
+        <!-- Badges: genérico/marca + receta -->
+        <div class="flex flex-wrap items-center gap-1 mb-1.5">
+          <span class="px-1.5 py-0.5 text-[9px] font-black rounded uppercase tracking-wide" [class]="tipoBadgeClass(p)">
+            {{ tipoLabel(p) }}
+          </span>
+          @if (p.requiereReceta) {
+            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-accent-red text-white text-[9px] font-black rounded uppercase tracking-wide shadow-sm">
+              <span class="material-symbols-outlined text-[11px] icon-fill" aria-hidden="true">warning</span>
+              Requiere Receta
+            </span>
+          }
+        </div>
+
+        <!-- Precio -->
+        <div class="mt-auto flex items-baseline gap-0.5">
+          <span class="text-[10px] font-bold text-text-secondary">S/</span>
+          <span class="text-base font-black text-text-main tracking-tight">{{ p.precioVenta | number:'1.2-2' }}</span>
+        </div>
+      </button>
+    </ng-template>
+
+    <!-- Grid de productos (flex-1, scroll interno) -->
+    <div class="flex-1 overflow-y-auto p-2.5">
+
+      @if (cargandoCatalogo()) {
+        <!-- ══════════ SKELETONS DE CARGA ══════════ -->
+        <div class="flex flex-col fs-stagger">
+          @for (s of skeletons; track $index) {
+            <div class="grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-2 px-2 py-2 border-b border-border-color/40">
+              <div class="space-y-1.5 min-w-0">
+                <div class="fs-skeleton h-3 rounded w-3/4"></div>
+                <div class="fs-skeleton h-2 rounded w-1/2"></div>
+              </div>
+              <div class="fs-skeleton h-4 rounded w-14"></div>
+              <div class="fs-skeleton h-4 rounded w-12 mx-auto"></div>
+              <div class="fs-skeleton h-4 rounded w-20 ml-auto"></div>
+            </div>
+          }
+        </div>
+      } @else if (vistaAgrupada()) {
+        <!-- ══════════ VISTA TABLA COMPACTA DE ALTA DENSIDAD ══════════ -->
+
+        <!-- Plantilla de FILA delgada (sin imágenes) reutilizable -->
+        <ng-template #rowTpl let-p="p">
+          <!-- Fila COMPLETA clickeable: abre el selector de presentación -->
+          <button type="button"
+            (click)="agregarProducto(p)"
+            [disabled]="!hayStock(p)"
+            [attr.id]="'fila-' + p.id"
+            [class.pos-fila-activa]="filaActivaId() === p.id"
+            [attr.aria-label]="'Agregar ' + p.nombre + (p.laboratorio ? ', ' + p.laboratorio : '')"
+            class="w-full text-left grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-2 px-2 py-1 border-b border-border-color/50 cursor-pointer hover:bg-primary-50/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:bg-primary-50/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+            <!-- Col 1: Nombre comercial + presentación base / Lab • Ubicación -->
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-text-main truncate leading-tight">
+                {{ p.nombre }}
+                @if (p.presentacion) {
+                  <span class="text-[11px] font-medium text-text-secondary">· {{ p.presentacion }}</span>
+                }
+              </p>
+              <p class="text-[11px] text-text-secondary truncate flex items-center gap-1.5">
+                <span>{{ p.laboratorio }}</span>
+                @if (p.ubicacion) {
+                  <span class="inline-flex items-center gap-0.5 text-primary">
+                    <span class="material-symbols-outlined text-[12px]" aria-hidden="true">location_on</span>{{ p.ubicacion }}
+                  </span>
+                }
+                @if (diasVenceLote(p) !== null) {
+                  <span class="inline-flex items-center gap-0.5"
+                        [class.text-accent-red-ink]="diasVenceLote(p)! <= 30"
+                        [class.font-bold]="diasVenceLote(p)! <= 30"
+                        [class.text-amber-600]="diasVenceLote(p)! > 30 && diasVenceLote(p)! <= 90"
+                        [class.text-text-secondary]="diasVenceLote(p)! > 90">
+                    <span class="material-symbols-outlined text-[12px]" aria-hidden="true">event_busy</span>
+                    Vence {{ fechaVenceLote(p) }}
+                    @if (diasVenceLote(p)! <= 90) {
+                      <span class="font-bold">({{ diasVenceLote(p) }}d)</span>
+                    }
+                  </span>
+                }
+                @if (unidadesVencidas(p) > 0) {
+                  <span class="inline-flex items-center gap-0.5 text-accent-red-ink font-bold">
+                    <span class="material-symbols-outlined text-[12px]" aria-hidden="true">block</span>{{ unidadesVencidas(p) }} vencidas
+                  </span>
+                }
+              </p>
+            </div>
+
+            <!-- Col 2: Badges de condición (solo Receta grita; tipo es outline sutil) -->
+            <div class="flex items-center gap-1 flex-wrap min-w-0">
+              <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded" [class]="tipoBadgeClass(p)">
+                {{ tipoLabel(p) }}
+              </span>
+              @if (p.requiereReceta) {
+                <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-accent-red text-white text-[10px] font-bold rounded">
+                  <span class="material-symbols-outlined text-[11px] icon-fill" aria-hidden="true">warning</span>Receta
+                </span>
+              }
+            </div>
+
+            <!-- Col 3: Stock = número + punto de color (ámbar bajo, sin pastilla) -->
+            <div class="text-center">
+              <span class="inline-flex items-center gap-1.5 text-[11px] font-bold tabular-nums" [class]="stockTextClass(p)">
+                <span class="size-1.5 rounded-full shrink-0" [class]="stockDotClass(p)" aria-hidden="true"></span>{{ stockLabel(p) }}
+              </span>
+            </div>
+
+            <!-- Col 4: Precio (neutro, no parece link; el "desde" vive en la cabecera) -->
+            <span class="whitespace-nowrap text-end text-sm font-bold text-text-main tabular-nums">S/ {{ precioBaseDesde(p) | number:'1.2-2' }}</span>
+          </button>
+        </ng-template>
+
+        <!-- Cabecera de columnas (una sola, sticky sobre todas las secciones) -->
+        <div class="sticky top-0 z-10 grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.1fr)] items-center gap-2 px-2 py-1.5 bg-surface border-b border-border-color text-[11px] font-semibold text-text-secondary">
+          <span>Producto</span>
+          <span>Tipo</span>
+          <span class="text-center">Stock</span>
+          <span class="text-end">Precio desde</span>
+        </div>
+
+        <div class="flex flex-col gap-2 pt-2">
+
+          <!-- Familias con alternativas equivalentes -->
+          @for (g of gruposAlternativas(); track g.principioActivo) {
+            <section class="rounded-lg border border-border-color overflow-hidden">
+              <!-- Fila divisoria: encabezado de grupo -->
+              <div class="flex items-center justify-between gap-2 px-2 py-1.5 bg-background-light border-b-2 border-primary/30">
+                <span class="text-[12px] font-bold text-text-main flex items-center gap-1.5 min-w-0">
+                  <span class="material-symbols-outlined text-[15px] text-primary shrink-0">science</span>
+                  <span class="truncate">{{ g.principioActivo }}
+                    <span class="text-text-secondary font-medium">· {{ g.productos.length }} alternativas</span>
+                  </span>
+                </span>
+                <span class="flex items-center gap-2 shrink-0">
+                  @if (ahorroGenerico(g); as ahorro) {
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                      Genérico ahorra S/ {{ ahorro | number:'1.2-2' }}
+                    </span>
+                  }
+                  @if (!grupoConStock(g)) {
+                    <span class="text-[11px] font-bold text-accent-red-ink">Sin stock en sucursal</span>
+                  } @else {
+                    <span class="text-[11px] font-semibold text-text-secondary tabular-nums">Desde S/ {{ g.precioDesde | number:'1.2-2' }}</span>
+                  }
+                </span>
+              </div>
+              @for (p of g.productos; track p.id) {
+                <ng-container *ngTemplateOutlet="rowTpl; context: { p: p }"></ng-container>
+              }
+            </section>
+          }
+
+          <!-- Resto de productos sin alternativas -->
+          @if (productosSueltos().length) {
+            <section class="rounded-lg border border-border-color overflow-hidden">
+              @if (gruposAlternativas().length) {
+                <div class="px-2 py-1.5 bg-background-light border-b-2 border-border-color">
+                  <span class="text-[12px] font-bold text-text-secondary">Otros productos</span>
+                </div>
+              }
+              @for (p of productosSueltos(); track p.id) {
+                <ng-container *ngTemplateOutlet="rowTpl; context: { p: p }"></ng-container>
+              }
+            </section>
+          }
+
+          @if (!gruposAlternativas().length && !productosSueltos().length) {
+            <div class="flex flex-col items-center justify-center py-16 text-text-secondary">
+              <span class="material-symbols-outlined text-[56px] mb-2">search_off</span>
+              <p class="text-sm font-bold">Sin resultados</p>
+              <p class="text-xs">Ajusta el buscador o cambia de categoría</p>
+            </div>
+          }
+        </div>
+      } @else {
+        <!-- ── Vista PLANA (navegación normal) ───────────────────────── -->
+        <div class="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 content-start auto-rows-min">
+          @for (p of productosFiltrados(); track p.id) {
+            <ng-container *ngTemplateOutlet="cardTpl; context: { p: p }"></ng-container>
+          } @empty {
+            <div class="col-span-full flex flex-col items-center justify-center py-16 text-text-secondary">
+              <span class="material-symbols-outlined text-[56px] mb-2">search_off</span>
+              <p class="text-sm font-bold">Sin resultados</p>
+              <p class="text-xs">Ajusta el buscador o cambia de categoría</p>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div><!-- fin panel izquierdo -->
+
+
+  <!-- ══════════════════════════════════════════════════════════════
+       PANEL DERECHO — Cliente + Carrito + Cobro
+       Ancho fijo y responsivo; internamente dividido en tres zonas:
+         1. Cliente    → shrink-0
+         2. Carrito    → flex-1 + overflow-y-auto  (scrollea si hay muchos ítems)
+         3. Cobro      → shrink-0  (SIEMPRE visible al fondo)
+       ══════════════════════════════════════════════════════════════ -->
+  <div class="w-72 lg:w-80 2xl:w-96 shrink-0 h-[calc(100%-1rem)] min-h-0 mb-4 flex flex-col justify-between bg-surface rounded-xl shadow-soft border border-border-color overflow-hidden">
+
+    <!-- ── 1. CLIENTE (shrink-0) ────────────────────────────────── -->
+    <div class="p-3 border-b border-border-color shrink-0">
+      <label class="block text-[9px] font-black text-text-secondary uppercase tracking-widest mb-1.5">
+        Cliente / Facturación
+      </label>
+      <div class="flex gap-1.5">
+        <div class="relative flex-1 group">
+          <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+            <span class="material-symbols-outlined text-text-secondary text-[17px]">person_search</span>
+          </div>
+          <input
+            type="text"
+            placeholder="DNI / RUC"
+            class="block w-full pl-8 pr-2 py-2 bg-background-light border border-border-color rounded-lg text-sm font-semibold placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/30 transition-all"
+            [ngModel]="dniInput()"
+            (ngModelChange)="dniInput.set($event)"
+            (keydown.enter)="buscarCliente()"
+          />
+        </div>
+        <button
+          type="button"
+          (click)="buscarCliente()"
+          class="bg-primary text-white w-9 h-9 rounded-lg flex items-center justify-center hover:bg-primary-700 transition-all shadow-sm shrink-0"
+          aria-label="Buscar cliente"
+        >
+          <span class="material-symbols-outlined text-[18px]">person_add</span>
+        </button>
+      </div>
+
+      @if (cliente(); as c) {
+        <div class="mt-1.5 flex items-center justify-between px-0.5">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <div class="size-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
+            <span class="text-xs font-bold text-text-main truncate">{{ c.nombres }} {{ c.apellidos }}</span>
+          </div>
+          @if (c.puntos) {
+            <span class="text-[9px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded shrink-0 ml-1">
+              {{ c.puntos }} PTS
+            </span>
+          }
+        </div>
+      } @else {
+        <div class="mt-1.5 px-0.5 flex items-center justify-between">
+          <p class="text-[10px] text-text-secondary">Sin cliente · público general</p>
+          <button type="button" (click)="abrirNuevoCliente()"
+                  class="text-[10px] font-black text-primary hover:underline flex items-center gap-0.5 shrink-0">
+            <span class="material-symbols-outlined text-[14px]">add</span> Nuevo cliente
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- ── Modal: Nuevo cliente rápido ─────────────────────────────────── -->
+    @if (mostrarNuevoCliente()) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+           (click)="cancelarNuevoCliente()">
+        <div appFocusTrap class="bg-surface rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+             (click)="$event.stopPropagation()">
+          <div class="flex items-center gap-2.5 px-5 py-4 border-b border-border-color">
+            <div class="size-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <span class="material-symbols-outlined icon-fill text-[20px]">person_add</span>
+            </div>
+            <div>
+              <h3 class="font-bold text-text-main leading-tight">Nuevo cliente</h3>
+              <p class="text-[11px] text-text-secondary">Se registra y queda en esta venta</p>
+            </div>
+          </div>
+
+          <div class="p-5 space-y-3">
+            <div class="grid grid-cols-3 gap-2">
+              <label class="col-span-1 block">
+                <span class="text-[11px] font-semibold text-text-secondary">Tipo</span>
+                <select [ngModel]="nClienteTipo()" (ngModelChange)="nClienteTipo.set($event)"
+                        class="mt-1 w-full rounded-lg border border-border-color bg-background-light px-2 py-2 text-sm focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none">
+                  <option value="DNI">DNI</option>
+                  <option value="RUC">RUC</option>
+                  <option value="CE">CE</option>
+                </select>
+              </label>
+              <label class="col-span-2 block">
+                <span class="text-[11px] font-semibold text-text-secondary">N.º documento</span>
+                <input [ngModel]="nClienteDoc()" (ngModelChange)="nClienteDoc.set($event)"
+                       class="mt-1 w-full rounded-lg border border-border-color bg-background-light px-3 py-2 text-sm tabular-nums focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                       placeholder="45678912">
+              </label>
+            </div>
+            <label class="block">
+              <span class="text-[11px] font-semibold text-text-secondary">
+                {{ nClienteTipo() === 'RUC' ? 'Razón social' : 'Nombres' }}
+              </span>
+              <input [ngModel]="nClienteNombres()" (ngModelChange)="nClienteNombres.set($event)"
+                     class="mt-1 w-full rounded-lg border border-border-color bg-background-light px-3 py-2 text-sm focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                     [placeholder]="nClienteTipo() === 'RUC' ? 'Comercial Pérez S.A.C.' : 'Juan'">
+            </label>
+            @if (nClienteTipo() !== 'RUC') {
+              <label class="block">
+                <span class="text-[11px] font-semibold text-text-secondary">Apellidos</span>
+                <input [ngModel]="nClienteApellidos()" (ngModelChange)="nClienteApellidos.set($event)"
+                       class="mt-1 w-full rounded-lg border border-border-color bg-background-light px-3 py-2 text-sm focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                       placeholder="Pérez">
+              </label>
+            }
+          </div>
+
+          <div class="flex gap-2 justify-end px-5 py-4 border-t border-border-color bg-background-light">
+            <button type="button" (click)="cancelarNuevoCliente()"
+                    class="h-9 px-4 rounded-lg border border-border-color bg-white text-text-main text-sm font-semibold hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button type="button" (click)="guardarNuevoCliente()"
+                    class="h-9 px-5 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary-700 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[18px]">check</span> Guardar
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── 2. CARRITO (flex-1, scrolleable, con piso de altura) ─────────────────────── -->
+    <div class="flex-1 overflow-y-auto min-h-[120px]">
+
+      <!-- Header del carrito (sticky dentro del scroll) -->
+      <div class="flex items-center justify-between px-3 py-2 border-b border-border-color sticky top-0 bg-surface z-10">
+        <h2 class="font-bold text-text-main flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
+          <span class="material-symbols-outlined text-primary text-[18px] icon-fill">shopping_cart</span>
+          Carrito
+          <span class="bg-primary/10 text-primary text-[11px] font-bold px-1.5 rounded-full tabular-nums">
+            {{ totales().cantidadItems }}
+          </span>
+        </h2>
+        @if (carrito().length > 0) {
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              (click)="ponerEnEspera()"
+              class="text-[11px] font-semibold text-primary hover:underline bg-primary/5 px-2 py-0.5 rounded inline-flex items-center gap-0.5"
+              title="Guardar esta venta y atender al siguiente cliente"
+            >
+              <span class="material-symbols-outlined text-[13px]" aria-hidden="true">pause_circle</span>
+              En espera
+            </button>
+            <button
+              type="button"
+              (click)="solicitarVaciar()"
+              class="text-[11px] font-semibold text-accent-red-ink hover:underline bg-red-50 px-2 py-0.5 rounded"
+            >
+              Vaciar
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Ranuras de ventas en espera -->
+      @if (enEspera().length > 0) {
+        <div class="px-2 pt-2 flex flex-wrap gap-1.5">
+          @for (v of enEspera(); track v.id) {
+            <div class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-amber-800">
+              <span class="material-symbols-outlined text-[14px]" aria-hidden="true">pause_circle</span>
+              <button type="button" (click)="recuperarEspera(v.id)" class="hover:underline"
+                      [attr.aria-label]="'Recuperar venta en espera: ' + esperaLabel(v)">
+                {{ esperaLabel(v) }}
+              </button>
+              <button type="button" (click)="eliminarEspera(v.id)"
+                      class="size-5 flex items-center justify-center rounded hover:bg-amber-100"
+                      aria-label="Descartar venta en espera">
+                <span class="material-symbols-outlined text-[13px]" aria-hidden="true">close</span>
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Ítems (alta densidad: ~3 líneas por producto) -->
+      <div class="p-2 space-y-1.5">
+        @for (item of carrito(); track lineaId(item)) {
+          <div class="fs-fade-in-up bg-white px-2 py-1.5 rounded-lg border border-border-color group hover:border-primary/30 transition-all">
+
+            <!-- Línea 1: nombre comercial + eliminar -->
+            <div class="flex items-start justify-between gap-1.5">
+              <h4 class="flex-1 min-w-0 text-xs font-bold text-text-main truncate leading-tight">{{ item.producto.nombre }}</h4>
+              <button type="button" (click)="eliminarItem(lineaId(item))"
+                class="shrink-0 size-7 -mt-1 -mr-1 flex items-center justify-center rounded-md text-text-secondary/70 hover:text-accent-red-ink hover:bg-red-50 transition-colors"
+                [attr.aria-label]="'Eliminar ' + item.producto.nombre">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">delete</span>
+              </button>
+            </div>
+
+            <!-- Línea 2: meta compacta (lab · estante · presentación) -->
+            <p class="text-[11px] text-text-secondary truncate flex items-center gap-1">
+              <span class="truncate">{{ item.producto.laboratorio }}</span>
+              @if (item.producto.ubicacion) {
+                <span class="text-text-secondary/70 font-mono shrink-0">· {{ item.producto.ubicacion }}</span>
+              }
+              @if (item.presentacion) {
+                <span class="shrink-0 px-1 bg-primary/10 text-primary text-[10px] font-bold rounded">{{ item.presentacion.nombre }}</span>
+              }
+            </p>
+
+            <!-- Línea 3: stepper + unit + total -->
+            <div class="flex items-center justify-between mt-1">
+              <div class="flex items-center bg-background-light rounded-md p-0.5 shadow-inner">
+                <button type="button" (click)="decrementarItem(lineaId(item))" aria-label="Disminuir cantidad"
+                  class="size-7 flex items-center justify-center text-text-secondary hover:text-primary transition-colors bg-white rounded shadow-sm">
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">remove</span>
+                </button>
+
+                @if (editandoCantidadId() === lineaId(item)) {
+                  <input type="number" min="0"
+                    [ngModel]="cantidadEditandoValor()"
+                    (ngModelChange)="cantidadEditandoValor.set($event)"
+                    (keydown.enter)="confirmarCantidad(lineaId(item))"
+                    (keydown.escape)="cancelarEditarCantidad()"
+                    (blur)="confirmarCantidad(lineaId(item))"
+                    class="w-7 text-center text-xs font-black text-primary border border-primary rounded focus:outline-none"
+                    #cantidadInput />
+                } @else {
+                  <span
+                    class="w-8 text-center text-sm font-bold text-text-main cursor-pointer hover:text-primary transition-colors tabular-nums"
+                    (click)="iniciarEditarCantidad(item)"
+                    title="Clic para editar cantidad"
+                  >{{ item.cantidad }}</span>
+                }
+
+                <button type="button" (click)="incrementarItem(lineaId(item))" aria-label="Aumentar cantidad"
+                  class="size-7 flex items-center justify-center text-text-secondary hover:text-primary transition-colors bg-white rounded shadow-sm">
+                  <span class="material-symbols-outlined text-[16px]" aria-hidden="true">add</span>
+                </button>
+              </div>
+              <div class="text-right leading-none">
+                <span class="block text-[11px] text-text-secondary font-medium tabular-nums">Unit S/ {{ item.precioUnitario | number:'1.2-2' }}</span>
+                <span class="text-sm font-black text-text-main tracking-tight tabular-nums">S/ {{ (item.precioUnitario * item.cantidad) | number:'1.2-2' }}</span>
+              </div>
+            </div>
+          </div>
+
+        } @empty {
+          <div class="flex flex-col items-center justify-center py-10 text-text-secondary/60">
+            <span class="material-symbols-outlined text-[48px] mb-1.5">shopping_cart</span>
+            <p class="text-xs font-bold">Carrito vacío</p>
+            <p class="text-[11px]">Toca un producto para agregarlo</p>
+          </div>
+        }
+      </div>
+    </div><!-- fin carrito scrolleable -->
+
+
+    <!-- ── 3. COBRO (flex-shrink-0, siempre visible al fondo) ─────────── -->
+    <div class="flex-shrink-0 border-t border-border-color bg-slate-50 px-3 py-1.5 flex flex-col gap-1">
+
+      <!-- Tipo de comprobante -->
+      <div class="grid grid-cols-3 gap-2">
+        @for (tipo of [['BOLETA','receipt'], ['FACTURA','receipt_long'], ['TICKET','confirmation_number']]; track tipo[0]) {
+          <button type="button"
+            (click)="tipoComprobante.set($any(tipo[0]))"
+            class="flex flex-col items-center py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border-2 transition-all"
+            [class.border-primary]="tipoComprobante() === tipo[0]"
+            [class.bg-primary]="tipoComprobante() === tipo[0]"
+            [class.text-white]="tipoComprobante() === tipo[0]"
+            [class.bg-white]="tipoComprobante() !== tipo[0]"
+            [class.text-text-secondary]="tipoComprobante() !== tipo[0]"
+            [class.border-border-color]="tipoComprobante() !== tipo[0]"
+          >
+            <span class="material-symbols-outlined text-[18px] mb-0.5">{{ tipo[1] }}</span>
+            {{ tipo[0] }}
+          </button>
+        }
+      </div>
+      @if (tipoComprobante() === 'FACTURA' && cliente()?.tipoDocumento !== 'RUC') {
+        <p class="text-[10px] text-red-500 font-semibold flex items-center gap-1">
+          <span class="material-symbols-outlined text-[11px]">warning</span>
+          Factura requiere cliente con RUC
+        </p>
+      }
+
+      <!-- Totales -->
+      <div class="space-y-0.5">
+        <div class="flex justify-between text-[11px] font-bold">
+          <span class="text-text-secondary">Subtotal</span>
+          <span class="text-text-main tabular-nums">S/ {{ totales().subtotal | number:'1.2-2' }}</span>
+        </div>
+        <div class="flex justify-between text-[11px] font-bold">
+          <span class="text-text-secondary">IGV (18%)</span>
+          <span class="text-text-main tabular-nums">S/ {{ totales().igv | number:'1.2-2' }}</span>
+        </div>
+        @if (totales().descuento > 0) {
+          <div class="flex justify-between text-[11px] font-bold">
+            <span class="text-accent-red-ink">Descuento</span>
+            <span class="text-accent-red-ink tabular-nums">- S/ {{ totales().descuento | number:'1.2-2' }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Descuento (opcional, con tope por rol) -->
+      <div class="flex items-center gap-2">
+        <span class="text-[11px] font-bold text-text-secondary shrink-0">Descuento</span>
+        <div class="flex bg-background-light rounded-lg p-0.5 border border-border-color shrink-0">
+          <button type="button" (click)="descuentoTipo.set('monto')"
+            class="px-2 py-0.5 rounded text-[11px] font-black transition-colors"
+            [class.bg-surface]="descuentoTipo()==='monto'" [class.text-primary]="descuentoTipo()==='monto'"
+            [class.text-text-secondary]="descuentoTipo()!=='monto'">S/</button>
+          <button type="button" (click)="descuentoTipo.set('pct')"
+            class="px-2 py-0.5 rounded text-[11px] font-black transition-colors"
+            [class.bg-surface]="descuentoTipo()==='pct'" [class.text-primary]="descuentoTipo()==='pct'"
+            [class.text-text-secondary]="descuentoTipo()!=='pct'">%</button>
+        </div>
+        <input type="number" inputmode="decimal" min="0" [ngModel]="descuentoValor()" (ngModelChange)="descuentoValor.set($event)"
+          placeholder="0"
+          class="w-16 h-7 px-2 border border-border-color rounded-lg text-xs tabular-nums text-right focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"/>
+        @if (descuentoTopeExcedido()) {
+          <span class="text-[10px] text-accent-orange-ink font-semibold ml-auto flex items-center gap-0.5">
+            <span class="material-symbols-outlined text-[11px]">info</span>máx {{ maxDescuentoPct() }}%
+          </span>
+        }
+      </div>
+
+      <div class="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/10 px-3 py-2 mt-0.5">
+        <span class="text-xs font-black text-primary uppercase tracking-widest">Total a pagar</span>
+        @for (t of [totales().total]; track t) {
+          <span class="fs-bump text-[2.5rem] font-black text-primary tracking-tight leading-none tabular-nums origin-right">
+            S/ {{ t | number:'1.2-2' }}
+          </span>
+        }
+      </div>
+
+      <!-- Métodos de pago -->
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" (click)="seleccionarMetodoPago('TARJETA')"
+          class="flex flex-col items-center justify-center py-1.5 rounded-lg border-2 transition-all text-[10px] font-black uppercase shadow-sm"
+          [class.bg-primary]="esMetodoActivo('TARJETA')"
+          [class.text-white]="esMetodoActivo('TARJETA')"
+          [class.border-primary]="esMetodoActivo('TARJETA')"
+          [class.bg-white]="!esMetodoActivo('TARJETA')"
+          [class.text-primary]="!esMetodoActivo('TARJETA')"
+          [class.border-primary/20]="!esMetodoActivo('TARJETA')">
+          <span class="material-symbols-outlined text-[20px]">credit_card</span>
+          Tarjeta
+          <span class="text-[9px] opacity-60">F5</span>
+        </button>
+        <button type="button" (click)="seleccionarMetodoPago('EFECTIVO')"
+          class="flex flex-col items-center justify-center py-1.5 rounded-lg border-2 transition-all text-[10px] font-black uppercase shadow-sm"
+          [class.bg-accent-orange]="esMetodoActivo('EFECTIVO')"
+          [class.text-white]="esMetodoActivo('EFECTIVO')"
+          [class.border-accent-orange]="esMetodoActivo('EFECTIVO')"
+          [class.bg-white]="!esMetodoActivo('EFECTIVO')"
+          [class.text-accent-orange-ink]="!esMetodoActivo('EFECTIVO')"
+          [class.border-accent-orange/20]="!esMetodoActivo('EFECTIVO')">
+          <span class="material-symbols-outlined text-[20px]">payments</span>
+          Efectivo
+          <span class="text-[9px] opacity-60">F6</span>
+        </button>
+        <button type="button" (click)="seleccionarMetodoPago('YAPE_PLIN')"
+          class="flex flex-col items-center justify-center py-1.5 rounded-lg border-2 transition-all text-[10px] font-black uppercase shadow-sm"
+          [class.bg-violet-600]="esMetodoActivo('YAPE_PLIN')"
+          [class.text-white]="esMetodoActivo('YAPE_PLIN')"
+          [class.border-violet-600]="esMetodoActivo('YAPE_PLIN')"
+          [class.bg-white]="!esMetodoActivo('YAPE_PLIN')"
+          [class.text-violet-600]="!esMetodoActivo('YAPE_PLIN')"
+          [class.border-violet-200]="!esMetodoActivo('YAPE_PLIN')">
+          <span class="material-symbols-outlined text-[20px]">qr_code_2</span>
+          Yape/Plin
+          <span class="text-[9px] opacity-60">F7</span>
+        </button>
+      </div>
+
+      <!-- Toggle: pago mixto -->
+      <button type="button" (click)="togglePagoMixto()"
+        class="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors"
+        [class.bg-primary]="pagoMixto()" [class.text-white]="pagoMixto()" [class.border-primary]="pagoMixto()"
+        [class.bg-white]="!pagoMixto()" [class.text-text-secondary]="!pagoMixto()" [class.border-border-color]="!pagoMixto()">
+        <span class="material-symbols-outlined text-[16px]">{{ pagoMixto() ? 'check' : 'call_split' }}</span>
+        Pago mixto
+      </button>
+
+      <!-- Panel pago mixto -->
+      @if (pagoMixto()) {
+        <div class="bg-background-light border border-border-color rounded-xl p-2.5 space-y-2">
+          <p class="text-[11px] font-semibold text-text-secondary">Reparte el total entre métodos</p>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="block">
+              <span class="text-[11px] font-semibold text-accent-orange-ink">Efectivo</span>
+              <input type="number" inputmode="decimal" min="0" step="0.50" [ngModel]="mixEfectivo()" (ngModelChange)="mixEfectivo.set($event)"
+                class="mt-0.5 w-full h-8 px-2 border border-border-color rounded-lg text-sm font-bold text-right bg-white tabular-nums focus:ring-2 focus:ring-primary/20 outline-none" placeholder="0.00">
+            </label>
+            <label class="block">
+              <span class="text-[11px] font-semibold text-primary">Tarjeta</span>
+              <input type="number" inputmode="decimal" min="0" step="0.50" [ngModel]="mixTarjeta()" (ngModelChange)="mixTarjeta.set($event)"
+                class="mt-0.5 w-full h-8 px-2 border border-border-color rounded-lg text-sm font-bold text-right bg-white tabular-nums focus:ring-2 focus:ring-primary/20 outline-none" placeholder="0.00">
+            </label>
+            <label class="block">
+              <span class="text-[11px] font-semibold text-violet-600">Yape/Plin</span>
+              <input type="number" inputmode="decimal" min="0" step="0.50" [ngModel]="mixYape()" (ngModelChange)="mixYape.set($event)"
+                class="mt-0.5 w-full h-8 px-2 border border-border-color rounded-lg text-sm font-bold text-right bg-white tabular-nums focus:ring-2 focus:ring-primary/20 outline-none" placeholder="0.00">
+            </label>
+          </div>
+          <!-- Referencias del mixto: solo aparecen si esa pata tiene monto. -->
+          @if ((mixTarjeta() ?? 0) > 0) {
+            <div class="flex gap-2">
+              <input type="text" [ngModel]="referenciaTarjeta()" (ngModelChange)="referenciaTarjeta.set($event)"
+                placeholder="N° voucher tarjeta"
+                class="flex-1 h-8 px-2.5 border border-border-color rounded-lg text-xs font-semibold bg-white outline-none focus:ring-2 focus:ring-primary/20" />
+              <input type="text" inputmode="numeric" maxlength="4" [ngModel]="ultimos4()" (ngModelChange)="ultimos4.set($event)"
+                placeholder="Últ. 4"
+                class="w-16 h-8 px-2 border border-border-color rounded-lg text-xs font-semibold tabular-nums bg-white outline-none focus:ring-2 focus:ring-primary/20" />
+            </div>
+          }
+          @if ((mixYape() ?? 0) > 0) {
+            <input type="text" [ngModel]="referenciaYapePlin()" (ngModelChange)="referenciaYapePlin.set($event)"
+              placeholder="Celular o cód. operación Yape/Plin"
+              class="w-full h-8 px-2.5 border border-border-color rounded-lg text-xs font-semibold bg-white outline-none focus:ring-2 focus:ring-primary/20" />
+          }
+          <div class="flex items-center justify-between rounded-lg px-2.5 py-1.5"
+            [class.bg-emerald-50]="mixRestante() === 0" [class.bg-red-50]="mixRestante() !== 0">
+            <span class="text-[10px] font-black uppercase"
+              [class.text-emerald-700]="mixRestante() === 0" [class.text-red-600]="mixRestante() !== 0">
+              {{ mixRestante() === 0 ? 'Cuadra exacto' : (mixRestante() > 0 ? 'Falta' : 'Sobra') }}
+            </span>
+            <span class="text-sm font-black tabular-nums"
+              [class.text-emerald-700]="mixRestante() === 0" [class.text-red-600]="mixRestante() !== 0">
+              S/ {{ (mixRestante() < 0 ? -mixRestante() : mixRestante()) | number:'1.2-2' }}
+            </span>
+          </div>
+        </div>
+      }
+
+      <!-- Panel efectivo -->
+      @if (esMetodoActivo('EFECTIVO') && !pagoMixto()) {
+        <div class="bg-orange-50 border border-orange-100 rounded-xl p-2.5 flex flex-col gap-1.5">
+          <p class="text-[11px] font-semibold text-orange-700">Efectivo recibido</p>
+          <input type="number" inputmode="decimal" min="0" step="0.50"
+            [ngModel]="montoRecibido()"
+            (ngModelChange)="montoRecibido.set($event)"
+            placeholder="S/ 0.00"
+            class="w-full h-8 px-3 border border-orange-200 rounded-lg text-sm font-bold text-right focus:ring-2 focus:ring-orange-300 focus:border-orange-400 bg-white" />
+          <div class="flex gap-1 flex-wrap">
+            @for (billete of montosRapidos(); track billete) {
+              <button type="button" (click)="montoRecibido.set(billete)"
+                class="px-2 py-0.5 bg-white border border-orange-200 hover:bg-orange-100 rounded text-[10px] font-bold text-orange-700 transition-colors">
+                S/ {{ billete }}
+              </button>
+            }
+          </div>
+          @if (vuelto() !== null) {
+            <div class="flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5 border border-orange-200">
+              <span class="text-[10px] font-bold text-orange-700">Vuelto</span>
+              <span class="text-base font-black text-orange-700">S/ {{ vuelto()! | number:'1.2-2' }}</span>
+            </div>
+          } @else if (montoRecibido() !== null && montoRecibido()! < totales().total) {
+            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+              <span class="material-symbols-outlined text-red-500 text-[14px]">warning</span>
+              <span class="text-[10px] font-bold text-red-600">Monto insuficiente</span>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Panel Yape / Plin (pago manual: el cliente escanea el QR físico del mostrador) -->
+      @if (esMetodoActivo('YAPE_PLIN') && !pagoMixto()) {
+        <div class="bg-violet-50 border border-violet-100 rounded-xl p-2.5 flex flex-col gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="size-11 shrink-0 bg-white rounded-lg border border-violet-200 flex items-center justify-center">
+              <span class="material-symbols-outlined text-violet-400 text-[26px]">qr_code_2</span>
+            </div>
+            <div>
+              <p class="text-[10px] font-black text-violet-700">Cliente escanea el QR del mostrador</p>
+              <p class="text-[10px] text-violet-600 mt-0.5">Valida el pago en pantalla · Total: <span class="font-black">S/ {{ totales().total | number:'1.2-2' }}</span></p>
+              @if (sucursalActiva(); as suc) {
+                <p class="text-[10px] text-violet-500 mt-0.5">
+                  {{ suc.nombre }}@if (suc.qrYape) { · Yape: <span class="font-bold">{{ suc.qrYape }}</span> }
+                </p>
+              }
+            </div>
+          </div>
+          <input type="text"
+            [ngModel]="referenciaYapePlin()"
+            (ngModelChange)="referenciaYapePlin.set($event)"
+            (keydown.enter)="procesarVenta()"
+            placeholder="Celular o Cód. Operación (Opcional)"
+            class="w-full h-8 px-3 border border-violet-200 rounded-lg text-sm font-semibold placeholder-violet-300 focus:ring-2 focus:ring-violet-300 focus:border-violet-400 bg-white" />
+        </div>
+      }
+
+      <!-- Panel Tarjeta (el cobro se hace en el datáfono; aquí se anota el voucher) -->
+      @if (esMetodoActivo('TARJETA') && !pagoMixto()) {
+        <div class="bg-sky-50 border border-sky-100 rounded-xl p-2.5 flex flex-col gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="size-11 shrink-0 bg-white rounded-lg border border-sky-200 flex items-center justify-center">
+              <span class="material-symbols-outlined text-sky-400 text-[26px]">credit_card</span>
+            </div>
+            <div>
+              <p class="text-[10px] font-black text-sky-700">Cobra en el datáfono y anota el voucher</p>
+              <p class="text-[10px] text-sky-600 mt-0.5">Total: <span class="font-black">S/ {{ totales().total | number:'1.2-2' }}</span></p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <input type="text"
+              [ngModel]="referenciaTarjeta()"
+              (ngModelChange)="referenciaTarjeta.set($event)"
+              (keydown.enter)="procesarVenta()"
+              placeholder="N° de operación del voucher"
+              class="flex-1 h-8 px-3 border border-sky-200 rounded-lg text-sm font-semibold placeholder-sky-300 focus:ring-2 focus:ring-sky-300 focus:border-sky-400 bg-white" />
+            <input type="text" inputmode="numeric" maxlength="4"
+              [ngModel]="ultimos4()"
+              (ngModelChange)="ultimos4.set($event)"
+              (keydown.enter)="procesarVenta()"
+              placeholder="Últ. 4"
+              class="w-20 h-8 px-3 border border-sky-200 rounded-lg text-sm font-semibold tabular-nums placeholder-sky-300 focus:ring-2 focus:ring-sky-300 focus:border-sky-400 bg-white" />
+          </div>
+          <p class="text-[10px] text-sky-600/80 leading-snug">
+            Opcional, pero sin esto no se puede saber qué venta falta si el cierre del
+            datáfono no coincide con el del sistema.
+          </p>
+        </div>
+      }
+
+      <!-- Panel Transferencia -->
+      @if (esMetodoActivo('TRANSFERENCIA') && !pagoMixto()) {
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex flex-col gap-2">
+          <div class="flex items-center gap-2.5">
+            <div class="size-11 shrink-0 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+              <span class="material-symbols-outlined text-slate-400 text-[26px]">account_balance</span>
+            </div>
+            <div>
+              <p class="text-[10px] font-black text-slate-700">Verifica el abono antes de entregar</p>
+              <p class="text-[10px] text-slate-600 mt-0.5">Total: <span class="font-black">S/ {{ totales().total | number:'1.2-2' }}</span></p>
+            </div>
+          </div>
+          <input type="text"
+            [ngModel]="referenciaTarjeta()"
+            (ngModelChange)="referenciaTarjeta.set($event)"
+            (keydown.enter)="procesarVenta()"
+            placeholder="N° de operación"
+            class="w-full h-8 px-3 border border-slate-200 rounded-lg text-sm font-semibold placeholder-slate-300 focus:ring-2 focus:ring-slate-300 focus:border-slate-400 bg-white" />
+        </div>
+      }
+
+      <!-- Aviso: sin conexión -->
+      @if (!online()) {
+        <div class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold"
+             role="alert">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">wifi_off</span>
+          Sin conexión — no se puede cobrar hasta recuperar internet
+        </div>
+      }
+
+      <!-- Aviso: caja cerrada -->
+      @if (!hayCaja()) {
+        <button type="button" (click)="irACaja()"
+          class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold hover:bg-amber-100 transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">lock</span>
+          Abre tu caja para poder vender
+          <span class="material-symbols-outlined text-[16px] ml-auto" aria-hidden="true">arrow_forward</span>
+        </button>
+      }
+
+      <!-- Botón cobrar -->
+      <button type="button"
+        (click)="procesarVenta()"
+        [disabled]="carrito().length === 0 || !hayCaja() || procesandoVenta() || !online()"
+        class="w-full bg-accent-green hover:bg-emerald-600 text-white h-12 rounded-xl font-black text-base tracking-tight flex items-center justify-center gap-2.5 shadow-lg shadow-accent-green/20 transition-all transform active:scale-95 group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-green">
+        @if (procesandoVenta()) {
+          <span class="size-5 border-2 border-white/40 border-t-white rounded-full animate-spin" aria-hidden="true"></span>
+          PROCESANDO…
+        } @else if (!online()) {
+          <span class="material-symbols-outlined text-[22px]" aria-hidden="true">wifi_off</span>
+          SIN CONEXIÓN
+        } @else if (!hayCaja()) {
+          <span class="material-symbols-outlined text-[22px]" aria-hidden="true">lock</span>
+          ABRE TU CAJA PARA COBRAR
+        } @else if (carrito().length === 0) {
+          <span class="material-symbols-outlined text-[22px]" aria-hidden="true">add_shopping_cart</span>
+          AGREGA PRODUCTOS PARA COBRAR
+        } @else {
+          <span class="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform" aria-hidden="true">receipt_long</span>
+          COBRAR · IMPRIMIR (F12)
+        }
+      </button>
+    </div><!-- fin cobro -->
+
+  </div><!-- fin panel derecho -->
+
+  <!-- ══ BLOQUEO: POS deshabilitado hasta abrir caja ══════════════════ -->
+  @if (!hayCaja()) {
+    <div class="absolute inset-0 z-30 bg-background-light/80 backdrop-blur-sm flex items-center justify-center p-4"
+         role="dialog" aria-modal="true" aria-labelledby="posBloqueoTitle">
+      <div class="bg-surface rounded-2xl border border-border-color shadow-xl p-8 max-w-sm w-full text-center">
+        <div class="size-14 mx-auto rounded-xl bg-amber-50 text-accent-orange-ink flex items-center justify-center mb-4">
+          <span class="material-symbols-outlined text-[30px]" aria-hidden="true">lock</span>
+        </div>
+        <h2 id="posBloqueoTitle" class="text-lg font-black text-text-main">Caja cerrada</h2>
+        <p class="text-sm text-text-secondary mt-1.5 mb-5">
+          Debes abrir tu caja para empezar a vender. Las ventas se registran en el turno para el cuadre.
+        </p>
+        <button type="button" (click)="irACaja()"
+          class="w-full bg-primary hover:bg-primary-700 text-white font-bold text-sm h-11 rounded-lg flex items-center justify-center gap-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
+          <span class="material-symbols-outlined text-[20px]" aria-hidden="true">point_of_sale</span>
+          Abrir caja
+        </button>
+      </div>
+    </div>
+  }
+
+</div><!-- fin POS root -->
+
+
+<!-- Los toasts ahora se renderizan globalmente vía <app-toast> en el MainLayout. -->
+
+
+<!-- ══════════════════════ MODAL BOLETA ════════════════════════════ -->
+@if (mostrarBoleta()) {
+  @if (ventaCompletada(); as v) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cerrarBoleta()" role="dialog" aria-modal="true" aria-labelledby="boletaDlgTitle">
+      <div appFocusTrap class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[95vh]"
+           (click)="$event.stopPropagation()">
+
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <div class="size-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+              <span class="material-symbols-outlined text-emerald-600 text-[22px]">task_alt</span>
+            </div>
+            <div>
+              <h3 id="boletaDlgTitle" class="font-black text-text-main text-base">¡Venta completada!</h3>
+              <p class="text-xs text-text-secondary">{{ v.numeroComprobante }} · {{ v.tipoComprobante }}</p>
+            </div>
+          </div>
+          <button (click)="cerrarBoleta()"
+            class="size-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-text-secondary transition-colors">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5">
+          <div class="bg-gray-50 rounded-xl p-4 font-mono text-[11px] text-gray-800 border border-gray-200">
+            <div class="text-center mb-3">
+              <div class="font-black text-base">{{ negocioInfo().nombre }}</div>
+              @if (negocioInfo().ruc) { <div class="text-[10px]">RUC: {{ negocioInfo().ruc }}</div> }
+              @if (negocioInfo().direccion) { <div class="text-[10px]">{{ negocioInfo().direccion }}</div> }
+              @if (negocioInfo().telefono) { <div class="text-[10px]">Tel: {{ negocioInfo().telefono }}</div> }
+            </div>
+            <div class="border-t border-dashed border-gray-400 my-2"></div>
+            <div class="text-center font-bold text-sm">{{ v.tipoComprobante }} DE VENTA</div>
+            <div class="text-center text-[11px] mb-2">{{ v.numeroComprobante }}</div>
+            <div class="border-t border-dashed border-gray-400 my-2"></div>
+            <div class="text-[10px] space-y-0.5 mb-2">
+              <div><span class="font-bold">Fecha:</span> {{ formatFechaHora(v.fechaHora) }}</div>
+              <div><span class="font-bold">Cajero:</span> {{ v.cajero }}</div>
+              @if (v.cliente) {
+                <div><span class="font-bold">Cliente:</span> {{ v.cliente.nombres }} {{ v.cliente.apellidos }}</div>
+                @if (v.cliente.numeroDocumento) {
+                  <div><span class="font-bold">{{ v.cliente.tipoDocumento }}:</span> {{ v.cliente.numeroDocumento }}</div>
+                }
+              } @else {
+                <div><span class="font-bold">Cliente:</span> Consumidor Final</div>
+              }
+              @if (v.pagos && v.pagos.length > 1) {
+                <div><span class="font-bold">Pago:</span></div>
+                @for (p of v.pagos; track p.label) {
+                  <div class="pl-2">· {{ p.label }}: S/ {{ p.monto.toFixed(2) }}@if (p.referencia) { (Ref. {{ p.referencia }})}</div>
+                }
+              } @else {
+                <div><span class="font-bold">Pago:</span> {{ labelMetodo(v.metodoPago) }}</div>
+              }
+            </div>
+            <div class="border-t border-dashed border-gray-400 my-2"></div>
+            <div class="space-y-1 mb-2">
+              @for (item of v.items; track $index) {
+                <div class="flex justify-between gap-2">
+                  <div class="flex-1 min-w-0 truncate">{{ item.producto.nombre }}</div>
+                  <div class="shrink-0 text-right">{{ item.cantidad }}x S/{{ item.precioUnitario.toFixed(2) }}</div>
+                </div>
+                <div class="text-right text-[10px] text-gray-500 -mt-0.5">
+                  = S/ {{ (item.precioUnitario * item.cantidad).toFixed(2) }}
+                </div>
+              }
+            </div>
+            <div class="border-t border-dashed border-gray-400 my-2"></div>
+            <div class="space-y-0.5 text-[11px]">
+              <div class="flex justify-between"><span>Subtotal:</span><span>S/ {{ v.subtotal.toFixed(2) }}</span></div>
+              <div class="flex justify-between"><span>IGV (18%):</span><span>S/ {{ v.igv.toFixed(2) }}</span></div>
+              @if (v.descuento > 0) {
+                <div class="flex justify-between text-red-600"><span>Descuento:</span><span>- S/ {{ v.descuento.toFixed(2) }}</span></div>
+              }
+              <div class="flex justify-between font-black text-[14px] border-t border-gray-400 pt-1.5 mt-1.5">
+                <span>TOTAL:</span><span>S/ {{ v.total.toFixed(2) }}</span>
+              </div>
+              @if (v.recibido != null && v.vuelto != null) {
+                <div class="flex justify-between pt-1"><span>Recibido:</span><span>S/ {{ v.recibido.toFixed(2) }}</span></div>
+                <div class="flex justify-between font-bold"><span>Vuelto:</span><span>S/ {{ v.vuelto.toFixed(2) }}</span></div>
+              }
+            </div>
+            <div class="border-t border-dashed border-gray-400 my-2"></div>
+            <div class="text-center text-[10px] text-gray-500">
+              <div>{{ negocioInfo().pieTicket }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-3 p-4 border-t border-gray-100">
+          <button (click)="cerrarBoleta()"
+            class="flex-1 h-10 border border-border-color bg-white hover:bg-gray-50 text-text-main rounded-xl text-sm font-semibold transition-colors">
+            Nueva venta (ESC)
+          </button>
+          <button (click)="imprimirBoleta()"
+            class="flex-1 h-10 bg-primary hover:bg-primary-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">print</span>
+            Imprimir boleta
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+<!-- ══════════════════ MODAL CONFIRMAR VACIAR ══════════════════════ -->
+@if (mostrarConfirmacionVaciar()) {
+  <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+       (click)="cancelarVaciar()" role="dialog" aria-modal="true" aria-labelledby="vaciarDlgTitle">
+    <div appFocusTrap class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="size-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-accent-red-ink text-[28px]" aria-hidden="true">remove_shopping_cart</span>
+        </div>
+        <div>
+          <h3 id="vaciarDlgTitle" class="font-black text-text-main">¿Vaciar el carrito?</h3>
+          <p class="text-xs text-text-secondary mt-0.5">
+            Se quitarán {{ totales().cantidadItems }} producto(s) del carrito.
+          </p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" (click)="cancelarVaciar()"
+          class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-text-secondary border border-border-color hover:bg-gray-50 transition-colors">
+          Cancelar
+        </button>
+        <button type="button" (click)="confirmarVaciar()"
+          class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors">
+          Sí, vaciar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════ MODAL RECETA ════════════════════════════ -->
+@if (productoRecetaPendiente(); as p) {
+  <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+       (click)="cancelarReceta()" role="dialog" aria-modal="true" aria-labelledby="recetaDlgTitle">
+    <div appFocusTrap class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="size-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-accent-red-ink text-[28px] icon-fill" aria-hidden="true">clinical_notes</span>
+        </div>
+        <div>
+          <h3 id="recetaDlgTitle" class="font-black text-text-main">Producto con Receta</h3>
+          <p class="text-xs text-text-secondary mt-0.5">{{ p.nombre }}</p>
+        </div>
+      </div>
+      <div class="bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-4">
+        <p class="text-sm text-red-700 font-semibold">
+          Este medicamento requiere receta médica según DIGEMID.
+        </p>
+        <p class="text-xs text-red-600 mt-1">¿El cliente presentó la receta física o electrónica?</p>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" (click)="cancelarReceta()"
+          class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-text-secondary border border-border-color hover:bg-gray-50 transition-colors">
+          No, cancelar
+        </button>
+        <button type="button" (click)="confirmarReceta()"
+          class="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold bg-accent-green text-white hover:bg-emerald-600 transition-colors">
+          Sí, agregar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+
+<!-- ══════════════ MODAL SELECTOR DE PRESENTACIÓN ══════════════════ -->
+@if (productoFraccionPendiente(); as p) {
+  <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+       (click)="cancelarFraccion()" role="dialog" aria-modal="true" aria-labelledby="fraccionDlgTitle">
+    <div appFocusTrap class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="size-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-primary text-[28px] icon-fill" aria-hidden="true">inventory_2</span>
+        </div>
+        <div>
+          <h3 id="fraccionDlgTitle" class="font-black text-text-main">Elegir presentación</h3>
+          <p class="text-xs text-text-secondary mt-0.5">{{ p.nombre }}</p>
+        </div>
+      </div>
+
+      <div class="space-y-2 mb-3">
+        @for (pres of p.presentaciones; track pres.id; let i = $index) {
+          <button type="button" (click)="elegirPresentacion(pres)"
+            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border-color hover:border-primary hover:bg-primary/5 transition-all text-left">
+            <!-- Número de atajo de teclado -->
+            <span class="size-6 shrink-0 rounded-md bg-background-light border border-border-color flex items-center justify-center text-xs font-black text-text-secondary">
+              {{ i + 1 }}
+            </span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-text-main">{{ pres.nombre }}</p>
+              <p class="text-[10px] text-text-secondary">
+                {{ pres.unidadesDescripcion ?? (pres.factor + ' ' + (p.unidadBase ?? 'unidad') + (pres.factor > 1 ? 's' : '')) }}
+              </p>
+            </div>
+            <span class="text-sm font-black text-primary shrink-0">S/ {{ pres.precioVenta | number:'1.2-2' }}</span>
+          </button>
+        }
+      </div>
+
+      <p class="text-center text-[10px] text-text-secondary mb-3">
+        Atajos: <span class="font-black">1·2·3</span> elegir · <span class="font-black">Esc</span> cancelar
+      </p>
+
+      <button type="button" (click)="cancelarFraccion()"
+        class="w-full px-4 py-2.5 rounded-xl text-sm font-bold text-text-secondary border border-border-color hover:bg-gray-50 transition-colors">
+        Cancelar (Esc)
+      </button>
+    </div>
+  </div>
+} 

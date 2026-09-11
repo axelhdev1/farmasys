@@ -1,0 +1,895 @@
+<!-- ══════════════════════════════════════════════════════════════
+     SUCURSALES — Gestión multi-botica (SUPER_ADMIN / ADMIN)
+     ══════════════════════════════════════════════════════════════ -->
+<div class="flex flex-col gap-5 max-w-7xl mx-auto">
+
+  <!-- ── Encabezado ─────────────────────────────────────────────────── -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
+          Multi-Sucursal
+        </span>
+      </div>
+      <h2 class="text-xl font-bold text-text-main leading-tight">Mis Sucursales</h2>
+      <p class="text-sm text-text-secondary mt-0.5">
+        Administra las boticas de tu cadena: datos, series de comprobante y estado.
+      </p>
+      <p class="text-[11px] text-text-secondary/70 mt-1 flex items-center gap-1">
+        <span class="size-1.5 rounded-full bg-emerald-500"></span>
+        {{ actualizadoHace() }}
+      </p>
+    </div>
+    @if (puedeGestionar()) {
+      <button type="button" (click)="abrirNuevo()"
+              class="flex items-center gap-2 bg-primary hover:bg-primary-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors active:scale-95 shadow-sm shadow-primary/20">
+        <span class="material-symbols-outlined text-[18px]">add_business</span>
+        Nueva sucursal
+      </button>
+    }
+  </div>
+
+  <!-- ── Contadores reales ───────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="bg-surface rounded-xl border border-border-color p-4 flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-[20px]">store</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none tabular-nums">{{ totalSucursales() }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Boticas</p>
+      </div>
+    </div>
+    <div class="bg-surface rounded-xl border border-border-color p-4 flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-[20px]">check_circle</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none tabular-nums">{{ activas() }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Activas</p>
+      </div>
+    </div>
+    <div class="bg-surface rounded-xl border border-border-color p-4 flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-[20px]">build</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none tabular-nums">{{ enMantenimiento() }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">En mantenimiento</p>
+      </div>
+    </div>
+    <div class="bg-surface rounded-xl border border-border-color p-4 flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-[20px]">cancel</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none tabular-nums">{{ inactivas() }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Inactivas</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Ranking de ventas (comparativa entre boticas) ────────────────── -->
+  @if (hayVentasRanking()) {
+    <div class="bg-surface rounded-2xl border border-border-color p-5">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-symbols-outlined text-[20px] text-primary">leaderboard</span>
+        <h3 class="text-sm font-bold text-text-main">Ranking de ventas · Hoy</h3>
+      </div>
+      <div class="flex flex-col gap-3">
+        @for (r of ranking(); track r.sucursal.id) {
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-bold text-text-main w-32 sm:w-44 truncate shrink-0">{{ r.sucursal.nombre }}</span>
+            <div class="flex-1 h-3 bg-background-light rounded-full overflow-hidden">
+              <div class="h-full rounded-full bg-primary transition-all" [style.width.%]="barra(r.ventas)"></div>
+            </div>
+            <span class="text-xs font-black text-text-main tabular-nums w-24 text-right shrink-0">{{ formatSol(r.ventas) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Búsqueda ─────────────────────────────────────────────────────── -->
+  @if (totalSucursales() > 0) {
+    <div class="relative max-w-sm">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span class="material-symbols-outlined text-text-secondary text-[20px]">search</span>
+      </div>
+      <input type="text" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+             placeholder="Buscar por nombre, distrito o estado…"
+             class="block w-full pl-10 pr-3 h-10 border border-border-color bg-surface rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+    </div>
+  }
+
+  <!-- ── Tarjetas de sucursal ─────────────────────────────────────────── -->
+  @if (cargando()) {
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 fs-stagger">
+      @for (s of [1,2,3]; track s) {
+        <div class="bg-surface rounded-2xl border border-border-color p-5 space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="fs-skeleton size-10 rounded-xl"></div>
+            <div class="space-y-2 flex-1">
+              <div class="fs-skeleton h-4 w-32 rounded"></div>
+              <div class="fs-skeleton h-3 w-40 rounded"></div>
+            </div>
+          </div>
+          <div class="fs-skeleton h-3 w-full rounded"></div>
+          <div class="fs-skeleton h-8 w-full rounded-lg"></div>
+        </div>
+      }
+    </div>
+  } @else if (totalSucursales() === 0) {
+    <div class="bg-surface rounded-2xl border border-dashed border-border-color flex flex-col items-center justify-center py-16 text-text-secondary">
+      <span class="material-symbols-outlined text-[52px] mb-3 opacity-40">store</span>
+      <p class="font-bold text-sm">Aún no hay sucursales</p>
+      <p class="text-xs mt-1 mb-4">Crea tu primera botica para empezar a operar.</p>
+      @if (puedeGestionar()) {
+        <button type="button" (click)="abrirNuevo()"
+                class="flex items-center gap-2 bg-primary hover:bg-primary-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]">add_business</span>
+          Crear primera sucursal
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      @for (s of sucursalesFiltradas(); track s.id) {
+        <div class="fs-fade-in-up bg-surface rounded-2xl border overflow-hidden transition-shadow hover:shadow-soft"
+             [class.border-border-color]="s.estado !== 'EN_MANTENIMIENTO' && !esMenor(s)"
+             [class.border-amber-200]="s.estado === 'EN_MANTENIMIENTO' || esMenor(s)"
+             [class.opacity-70]="s.estado === 'INACTIVA'"
+             [class.ring-2]="esActiva(s)"
+             [class.ring-primary]="esActiva(s)">
+
+          <!-- Cabecera -->
+          <div class="px-5 py-4 border-b border-border-color flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="size-10 rounded-xl flex items-center justify-center shrink-0"
+                   [class]="s.estado === 'ACTIVA' ? 'bg-emerald-50' : s.estado === 'EN_MANTENIMIENTO' ? 'bg-amber-50' : 'bg-red-50'">
+                <span class="material-symbols-outlined icon-fill text-[22px]"
+                      [class]="s.estado === 'ACTIVA' ? 'text-emerald-600' : s.estado === 'EN_MANTENIMIENTO' ? 'text-amber-500' : 'text-red-500'">
+                  local_pharmacy
+                </span>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <h3 class="text-sm font-bold text-text-main leading-tight truncate">{{ s.nombre }}</h3>
+                  @if (esActiva(s)) {
+                    <span class="text-[11px] font-semibold px-1.5 py-0.5 bg-primary/10 text-primary rounded shrink-0">Activa ahora</span>
+                  }
+                  @if (esLider(s)) {
+                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded shrink-0"
+                          title="Mayor venta del día">
+                      <span class="material-symbols-outlined text-[12px] icon-fill" aria-hidden="true">workspace_premium</span>
+                      Líder
+                    </span>
+                  }
+                </div>
+                <p class="text-[11px] text-text-secondary truncate">{{ s.distrito || 'Sin distrito' }} · {{ s.telefono || 'Sin teléfono' }}</p>
+              </div>
+            </div>
+            <span [class]="'text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1 ' + clasesEstado(s.estado)">
+              <span class="material-symbols-outlined icon-fill text-[12px]">{{ iconoEstado(s.estado) }}</span>
+              {{ etiquetaEstado(s.estado) }}
+            </span>
+          </div>
+
+          <!-- Datos -->
+          <div class="p-5 flex flex-col gap-3">
+
+            <!-- KPIs del día (en vivo) -->
+            @if (kpiDe(s.id); as k) {
+              <div class="grid grid-cols-2 gap-3 pb-1">
+                <div>
+                  <p class="text-[11px] text-text-secondary">Ventas hoy</p>
+                  <p class="text-lg font-black text-text-main leading-tight tabular-nums">{{ formatSol(k.totalVendido) }}</p>
+                </div>
+                <div>
+                  <p class="text-[11px] text-text-secondary">Tickets · Prom.</p>
+                  <p class="text-lg font-black text-text-main leading-tight tabular-nums">
+                    {{ k.tickets }} <span class="text-xs font-semibold text-text-secondary">· {{ formatSol(k.ticketPromedio) }}</span>
+                  </p>
+                </div>
+              </div>
+
+              <!-- Tendencia 7 días (sparkline) -->
+              @if (sparkPuntos(s.id); as pts) {
+                <div class="flex items-center gap-2">
+                  <svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"
+                       class="h-7 flex-1"
+                       [class]="sparkSube(s.id) ? 'text-emerald-500' : 'text-amber-500'">
+                    <polyline
+                      [attr.points]="pts"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round" />
+                  </svg>
+                  <span class="text-[11px] shrink-0"
+                        [class]="sparkSube(s.id) ? 'text-emerald-600' : 'text-amber-600'">
+                    7 días
+                  </span>
+                </div>
+              }
+              <div class="flex items-center gap-1.5 flex-wrap">
+                @if (k.cajaAbierta) {
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
+                    Caja abierta @if (k.cajeroCaja) { · {{ k.cajeroCaja }} }
+                  </span>
+                } @else {
+                  <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    <span class="size-1.5 rounded-full bg-slate-400"></span>
+                    Caja cerrada
+                  </span>
+                }
+                @if (k.stockCritico > 0) {
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">{{ k.stockCritico }} stock bajo</span>
+                }
+                @if (k.alertasVencimiento > 0) {
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{{ k.alertasVencimiento }} por vencer</span>
+                }
+                <!-- Horario de atención (solo si la botica lo tiene configurado) -->
+                @if (s.horarioApertura && s.horarioCierre) {
+                  <span
+                    class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    [class]="abiertaAhora(s) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                    [title]="s.horarioApertura + ' – ' + s.horarioCierre">
+                    <span class="material-symbols-outlined text-[11px]" aria-hidden="true">schedule</span>
+                    {{ abiertaAhora(s) ? 'Abierta ahora' : 'Fuera de horario' }}
+                  </span>
+                }
+              </div>
+
+              <!-- Avance del mes vs meta (solo si hay meta configurada) -->
+              @if (avanceMeta(s); as m) {
+                <div>
+                  <div class="flex items-baseline justify-between mb-1">
+                    <span class="text-[10px] text-text-secondary font-bold uppercase tracking-wide">Avance del mes</span>
+                    <span class="text-[11px] font-bold text-text-main tabular-nums">
+                      {{ formatSol(m.vendido) }} <span class="text-text-secondary font-medium">/ {{ formatSol(m.meta) }}</span>
+                    </span>
+                  </div>
+                  <div class="h-2 bg-background-light rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all"
+                      [class]="m.pct >= 100 ? 'bg-emerald-500' : m.pct >= 60 ? 'bg-primary' : 'bg-amber-400'"
+                      [style.width.%]="m.pct"></div>
+                  </div>
+                  <p class="text-[11px] text-text-secondary mt-1 tabular-nums">{{ m.pct }}% de la meta mensual</p>
+                </div>
+              }
+
+              <div class="border-t border-border-color"></div>
+            } @else {
+              <!-- Aún sin KPIs: esqueleto, nunca ceros que después saltan -->
+              <div class="grid grid-cols-2 gap-3 pb-1">
+                <div>
+                  <p class="text-[11px] text-text-secondary">Ventas hoy</p>
+                  <div class="fs-skeleton h-6 w-24 rounded mt-1"></div>
+                </div>
+                <div>
+                  <p class="text-[11px] text-text-secondary">Tickets · Prom.</p>
+                  <div class="fs-skeleton h-6 w-20 rounded mt-1"></div>
+                </div>
+              </div>
+              <div class="fs-skeleton h-7 w-full rounded"></div>
+              <div class="flex gap-1.5">
+                <div class="fs-skeleton h-5 w-28 rounded-full"></div>
+                <div class="fs-skeleton h-5 w-20 rounded-full"></div>
+              </div>
+              <div class="border-t border-border-color"></div>
+            }
+
+            <!-- Regente y personal -->
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span class="inline-flex items-center gap-1.5 min-w-0 text-text-secondary">
+                <span class="material-symbols-outlined text-[15px] shrink-0" aria-hidden="true">badge</span>
+                @if (s.responsableNombre) {
+                  <span class="truncate"><span class="text-text-secondary">QF Regente:</span>
+                    <span class="font-semibold text-text-main">{{ s.responsableNombre }}</span></span>
+                } @else {
+                  <span class="text-text-secondary/70">Sin regente asignado</span>
+                }
+              </span>
+              <span class="inline-flex items-center gap-1 shrink-0 text-text-secondary">
+                <span class="material-symbols-outlined text-[15px]" aria-hidden="true">group</span>
+                <span class="font-semibold text-text-main tabular-nums">{{ personalDe(s.id) }}</span>
+              </span>
+            </div>
+
+            <!-- Accesos rápidos -->
+            <div class="grid grid-cols-3 gap-1.5">
+              <button type="button" (click)="irAInventario(s)"
+                      class="flex flex-col items-center gap-0.5 py-2 rounded-lg border border-border-color text-[11px] font-semibold text-text-secondary hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors">
+                <span class="material-symbols-outlined text-[17px]" aria-hidden="true">inventory_2</span>
+                Inventario
+              </button>
+              <button type="button" (click)="irAVentasHoy(s)"
+                      class="flex flex-col items-center gap-0.5 py-2 rounded-lg border border-border-color text-[11px] font-semibold text-text-secondary hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors">
+                <span class="material-symbols-outlined text-[17px]" aria-hidden="true">receipt_long</span>
+                Ventas hoy
+              </button>
+              <button type="button" (click)="irATransferencias(s)"
+                      class="flex flex-col items-center gap-0.5 py-2 rounded-lg border border-border-color text-[11px] font-semibold text-text-secondary hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors">
+                <span class="material-symbols-outlined text-[17px]" aria-hidden="true">swap_horiz</span>
+                Transferir
+              </button>
+            </div>
+
+            @if (puedeGestionar()) {
+              <button type="button" (click)="abrirTerminales(s)"
+                      class="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border-color text-[11px] font-semibold text-text-secondary hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors">
+                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">point_of_sale</span>
+                Terminales de caja
+              </button>
+            }
+
+            <div class="flex items-start gap-2 text-xs text-text-secondary">
+              <span class="material-symbols-outlined text-[15px] shrink-0 mt-0.5">location_on</span>
+              <span class="leading-snug">{{ s.direccion || 'Sin dirección registrada' }}</span>
+            </div>
+
+            <!-- Series de comprobante -->
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-background-light rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary font-bold uppercase tracking-wide">Serie boleta</p>
+                <p class="text-sm font-black text-text-main font-mono">{{ s.serieBoleta || '—' }}</p>
+              </div>
+              <div class="bg-background-light rounded-lg px-3 py-2">
+                <p class="text-[10px] text-text-secondary font-bold uppercase tracking-wide">Serie factura</p>
+                <p class="text-sm font-black text-text-main font-mono">{{ s.serieFactura || '—' }}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-text-secondary flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">calendar_today</span>
+                Registrada el {{ fechaApertura(s.apertura) }}
+              </p>
+              @if (s.responsableNombre) {
+                <p class="text-[10px] text-text-secondary flex items-center gap-1 truncate">
+                  <span class="material-symbols-outlined text-[12px]">badge</span>
+                  {{ s.responsableNombre }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          <div class="px-4 py-3 border-t border-border-color bg-background-light/60 flex items-center gap-2">
+            <button type="button" (click)="abrirDetalle(s)"
+                    class="flex-1 py-2 rounded-lg bg-white hover:bg-primary/5 text-xs font-bold text-text-secondary hover:text-primary border border-border-color hover:border-primary/30 transition-colors flex items-center justify-center gap-1.5">
+              <span class="material-symbols-outlined text-[16px]">visibility</span>
+              Ver detalle
+            </button>
+            @if (s.estado === 'ACTIVA') {
+              <button type="button" [routerLink]="['/dashboard']" (click)="irSucursal(s.id)" title="Ir a operar esta botica"
+                      class="size-9 rounded-lg flex items-center justify-center text-text-secondary hover:bg-primary/10 hover:text-primary transition-colors border border-border-color bg-white">
+                <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+              </button>
+            }
+            @if (puedeGestionar()) {
+              <button type="button" (click)="abrirEdicion(s)" title="Editar"
+                      class="size-9 rounded-lg flex items-center justify-center text-text-secondary hover:bg-primary/10 hover:text-primary transition-colors border border-border-color bg-white">
+                <span class="material-symbols-outlined text-[18px]">edit</span>
+              </button>
+              @if (s.estado !== 'INACTIVA') {
+                <button type="button" (click)="pedirDesactivar(s)" title="Desactivar"
+                        class="size-9 rounded-lg flex items-center justify-center text-text-secondary hover:bg-red-50 hover:text-accent-red-ink transition-colors border border-border-color bg-white">
+                  <span class="material-symbols-outlined text-[18px]">block</span>
+                </button>
+              } @else {
+                <button type="button" (click)="reactivar(s)" title="Reactivar"
+                        class="size-9 rounded-lg flex items-center justify-center text-emerald-600 hover:bg-emerald-50 transition-colors border border-border-color bg-white">
+                  <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+                </button>
+              }
+            }
+          </div>
+        </div>
+      } @empty {
+        <div class="col-span-full flex flex-col items-center justify-center py-12 text-text-secondary">
+          <span class="material-symbols-outlined text-[40px] mb-2 opacity-40">search_off</span>
+          <p class="text-sm font-bold">Sin resultados</p>
+          <p class="text-xs">Prueba con otro nombre, distrito o estado</p>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+
+<!-- ══════════════════════ MODAL CREAR / EDITAR ════════════════════════ -->
+@if (modalAbierto()) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarModal()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]"
+         (click)="$event.stopPropagation()">
+
+      <!-- Cabecera -->
+      <div class="px-6 py-4 border-b border-border-color flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill">{{ modo() === 'editar' ? 'edit' : 'add_business' }}</span>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-text-main">{{ modo() === 'editar' ? 'Editar sucursal' : 'Nueva sucursal' }}</h3>
+            <p class="text-xs text-text-secondary">Datos de la botica y series de comprobante</p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarModal()"
+                class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors" aria-label="Cerrar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <!-- Cuerpo -->
+      <div class="px-6 py-5 overflow-y-auto flex flex-col gap-4">
+        <div>
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+            Nombre <span class="text-accent-red-ink">*</span>
+          </label>
+          <input type="text" [ngModel]="fNombre()" (ngModelChange)="fNombre.set($event)"
+                 placeholder="Ej. Botica Central"
+                 class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Distrito</label>
+            <input type="text" [ngModel]="fDistrito()" (ngModelChange)="fDistrito.set($event)"
+                   placeholder="Ej. Miraflores"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Teléfono</label>
+            <input type="text" [ngModel]="fTelefono()" (ngModelChange)="fTelefono.set($event)"
+                   placeholder="(01) 555-1234"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Dirección</label>
+          <input type="text" [ngModel]="fDireccion()" (ngModelChange)="fDireccion.set($event)"
+                 placeholder="Av. Larco 456"
+                 class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Serie boleta <span class="text-accent-red-ink">*</span>
+            </label>
+            <input type="text" [ngModel]="fSerieBoleta()" (ngModelChange)="fSerieBoleta.set($event)"
+                   placeholder="B001" maxlength="4"
+                   class="block w-full px-3 h-10 bg-background-light border rounded-lg text-sm font-mono uppercase focus:ring-2 focus:bg-white transition-all"
+                   [class.border-border-color]="!errorSerieBoleta()" [class.focus:ring-primary/20]="!errorSerieBoleta()" [class.focus:border-primary]="!errorSerieBoleta()"
+                   [class.border-accent-red]="errorSerieBoleta()" [class.focus:ring-accent-red/20]="errorSerieBoleta()"/>
+            @if (errorSerieBoleta()) {
+              <p class="text-[11px] text-accent-red-ink mt-1">{{ errorSerieBoleta() }}</p>
+            }
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Serie factura <span class="text-accent-red-ink">*</span>
+            </label>
+            <input type="text" [ngModel]="fSerieFactura()" (ngModelChange)="fSerieFactura.set($event)"
+                   placeholder="F001" maxlength="4"
+                   class="block w-full px-3 h-10 bg-background-light border rounded-lg text-sm font-mono uppercase focus:ring-2 focus:bg-white transition-all"
+                   [class.border-border-color]="!errorSerieFactura()" [class.focus:ring-primary/20]="!errorSerieFactura()" [class.focus:border-primary]="!errorSerieFactura()"
+                   [class.border-accent-red]="errorSerieFactura()" [class.focus:ring-accent-red/20]="errorSerieFactura()"/>
+            @if (errorSerieFactura()) {
+              <p class="text-[11px] text-accent-red-ink mt-1">{{ errorSerieFactura() }}</p>
+            }
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Serie ticket <span class="text-accent-red-ink">*</span>
+            </label>
+            <input type="text" [ngModel]="fSerieTicket()" (ngModelChange)="fSerieTicket.set($event)"
+                   placeholder="T001" maxlength="4"
+                   class="block w-full px-3 h-10 bg-background-light border rounded-lg text-sm font-mono uppercase focus:ring-2 focus:bg-white transition-all"
+                   [class.border-border-color]="!errorSerieTicket()" [class.focus:ring-primary/20]="!errorSerieTicket()" [class.focus:border-primary]="!errorSerieTicket()"
+                   [class.border-accent-red]="errorSerieTicket()" [class.focus:ring-accent-red/20]="errorSerieTicket()"/>
+            @if (errorSerieTicket()) {
+              <p class="text-[11px] text-accent-red-ink mt-1">{{ errorSerieTicket() }}</p>
+            }
+          </div>
+        </div>
+        <p class="text-[11px] text-text-secondary -mt-2 flex items-center gap-1">
+          <span class="material-symbols-outlined text-[13px]">info</span>
+          Series distintas por botica (no se repiten entre sucursales). El ticket interno (T) no consume correlativos de boleta/factura.
+        </p>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">QR Yape</label>
+            <input type="text" [ngModel]="fQrYape()" (ngModelChange)="fQrYape.set($event)"
+                   placeholder="Celular o URL del QR"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">QR Plin</label>
+            <input type="text" [ngModel]="fQrPlin()" (ngModelChange)="fQrPlin.set($event)"
+                   placeholder="Celular o URL del QR"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Email de contacto</label>
+          <input type="email" [ngModel]="fEmail()" (ngModelChange)="fEmail.set($event)"
+                 placeholder="botica@farmasys.pe"
+                 class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Abre</label>
+            <input type="time" [ngModel]="fHorarioApertura()" (ngModelChange)="fHorarioApertura.set($event)"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Cierra</label>
+            <input type="time" [ngModel]="fHorarioCierre()" (ngModelChange)="fHorarioCierre.set($event)"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Meta S/ mes</label>
+            <input type="number" min="0" [ngModel]="fMeta()" (ngModelChange)="fMeta.set($event)"
+                   placeholder="0"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Estado</label>
+            <select [ngModel]="fEstado()" (ngModelChange)="fEstado.set($event)"
+                    class="block w-full px-3 h-10 bg-white border border-border-color rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary">
+              <option value="ACTIVA">Activa</option>
+              <option value="EN_MANTENIMIENTO">En mantenimiento</option>
+              <option value="INACTIVA">Inactiva</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Encargado</label>
+            <select [ngModel]="fResponsableId()" (ngModelChange)="fResponsableId.set($event)"
+                    class="block w-full px-3 h-10 bg-white border border-border-color rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary">
+              <option value="">Sin asignar</option>
+              @for (u of usuarios(); track u.id) {
+                <option [value]="u.id">{{ nombreUsuario(u) }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie -->
+      <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl shrink-0">
+        <button type="button" (click)="cerrarModal()"
+                class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">
+          Cancelar
+        </button>
+        <button type="button" (click)="guardar()" [disabled]="!formularioValido() || guardando()"
+                class="h-10 px-5 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+          @if (guardando()) {
+            <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            Guardando…
+          } @else {
+            <span class="material-symbols-outlined text-[18px]">save</span>
+            {{ modo() === 'editar' ? 'Guardar cambios' : 'Crear sucursal' }}
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+
+<!-- ══════════════════ MODAL TERMINALES (cajones físicos) ══════════════ -->
+@if (modalTerminales()) {
+  @if (sucTerminales(); as s) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cerrarTerminales()" role="dialog" aria-modal="true" aria-labelledby="termTitle">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" (click)="$event.stopPropagation()">
+        <div class="px-6 py-5">
+          <div class="flex items-center gap-3 mb-1">
+            <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined icon-fill">point_of_sale</span>
+            </div>
+            <div class="min-w-0">
+              <h3 id="termTitle" class="font-black text-lg text-text-main leading-tight">Terminales de caja</h3>
+              <p class="text-xs text-text-secondary truncate">{{ s.nombre }}</p>
+            </div>
+          </div>
+          <p class="text-[11px] text-text-secondary mb-4">
+            Cada terminal es un cajón físico. Solo puede haber <b>una caja abierta por terminal</b>.
+          </p>
+
+          @if (cargandoTerm()) {
+            <div class="fs-skeleton h-10 w-full rounded-lg mb-2"></div>
+            <div class="fs-skeleton h-10 w-full rounded-lg"></div>
+          } @else {
+            <div class="flex flex-col gap-1.5 mb-4 max-h-64 overflow-y-auto">
+              @for (t of terminales(); track t.id) {
+                <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-border-color">
+                  <div class="min-w-0">
+                    <p class="text-sm font-bold text-text-main font-mono">{{ t.nombre }}</p>
+                    <p class="text-[11px]"
+                       [class]="t.ocupado ? 'text-amber-600' : 'text-text-secondary'">
+                      {{ t.ocupado ? 'Ocupado por ' + t.ocupadoPor : (t.activo === false ? 'Desactivado' : 'Libre') }}
+                    </p>
+                  </div>
+                  <button type="button" (click)="alternarTerminal(t)" [disabled]="t.ocupado"
+                          class="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          [class]="t.activo === false
+                            ? 'text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                            : 'text-accent-red-ink border-red-200 hover:bg-red-50'">
+                    {{ t.activo === false ? 'Activar' : 'Desactivar' }}
+                  </button>
+                </div>
+              } @empty {
+                <p class="text-xs text-text-secondary py-4 text-center">
+                  Sin terminales. Agrega al menos uno para poder abrir caja.
+                </p>
+              }
+            </div>
+
+            <div class="flex gap-2">
+              <input type="text" [ngModel]="fNuevoTerminal()" (ngModelChange)="fNuevoTerminal.set($event)"
+                     [placeholder]="siguienteTerminal()"
+                     class="flex-1 h-10 px-3 border border-border-color rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+              <button type="button" (click)="agregarTerminal()"
+                      class="h-10 px-4 rounded-lg bg-primary hover:bg-primary-700 text-white text-sm font-bold transition-colors">
+                Agregar
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end rounded-b-2xl">
+          <button type="button" (click)="cerrarTerminales()"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+<!-- ══════════════ WIZARD DE APERTURA (sucursal recién creada) ══════════ -->
+@if (wizardAbierto()) {
+  @if (sucursalNueva(); as nueva) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cerrarWizard()" role="dialog" aria-modal="true" aria-labelledby="wizardTitle">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" (click)="$event.stopPropagation()">
+        <div class="px-6 py-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="size-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined icon-fill">celebration</span>
+            </div>
+            <div class="min-w-0">
+              <h3 id="wizardTitle" class="font-black text-lg text-text-main leading-tight">Sucursal creada</h3>
+              <p class="text-xs text-text-secondary truncate">{{ nueva.nombre }}</p>
+            </div>
+          </div>
+
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 mb-4">
+            <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0" aria-hidden="true">inventory_2</span>
+            <p class="text-xs text-amber-800">
+              <b>El stock nace en 0.</b> Para poder vender, primero hay que abastecerla.
+              Elige cómo cargar la mercadería inicial.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2">
+            <button type="button" (click)="wizardTransferir()"
+                    class="flex items-center gap-3 p-3 rounded-xl border border-border-color hover:border-primary/40 hover:bg-primary/5 transition-colors text-left">
+              <span class="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">swap_horiz</span>
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-bold text-text-main">Transferir desde otra botica</span>
+                <span class="block text-[11px] text-text-secondary">Mueve stock existente de una sucursal a esta.</span>
+              </span>
+            </button>
+            <button type="button" (click)="wizardConteo()"
+                    class="flex items-center gap-3 p-3 rounded-xl border border-border-color hover:border-primary/40 hover:bg-primary/5 transition-colors text-left">
+              <span class="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">fact_check</span>
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-bold text-text-main">Hacer conteo inicial</span>
+                <span class="block text-[11px] text-text-secondary">Carga la mercadería física que ya está en el local.</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end rounded-b-2xl">
+          <button type="button" (click)="cerrarWizard()"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">
+            Más tarde
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+<!-- ══════════════════════ MODAL DESACTIVAR ════════════════════════════ -->
+@if (modalDesactivar()) {
+  @if (sucDesactivar(); as s) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cancelarDesactivar()" role="dialog" aria-modal="true">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" (click)="$event.stopPropagation()">
+        <div class="px-6 py-5">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="size-10 rounded-xl bg-red-50 text-accent-red-ink flex items-center justify-center">
+              <span class="material-symbols-outlined icon-fill">block</span>
+            </div>
+            <div>
+              <h3 class="font-black text-lg text-text-main">Desactivar sucursal</h3>
+              <p class="text-xs text-text-secondary font-mono font-bold">{{ s.nombre }}</p>
+            </div>
+          </div>
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0">warning</span>
+            <p class="text-xs text-amber-800 leading-relaxed">
+              La sucursal queda <strong>inactiva</strong> (no se borra: se conservan ventas, stock
+              y cajas históricas). No podrá operar hasta reactivarla. Verifica que no tenga
+              caja abierta antes de continuar.
+            </p>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl">
+          <button type="button" (click)="cancelarDesactivar()"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmarDesactivar()"
+                  class="h-10 px-5 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">block</span>
+            Desactivar
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+<!-- ══════════════════════ MODAL DETALLE (FICHA) ═══════════════════════ -->
+@if (detalle(); as s) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarDetalle()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]"
+         (click)="$event.stopPropagation()">
+
+      <!-- Cabecera -->
+      <div class="px-6 py-4 border-b border-border-color flex items-start justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="size-11 rounded-xl flex items-center justify-center shrink-0"
+               [class]="s.estado === 'ACTIVA' ? 'bg-emerald-50' : s.estado === 'EN_MANTENIMIENTO' ? 'bg-amber-50' : 'bg-red-50'">
+            <span class="material-symbols-outlined icon-fill text-[24px]"
+                  [class]="s.estado === 'ACTIVA' ? 'text-emerald-600' : s.estado === 'EN_MANTENIMIENTO' ? 'text-amber-500' : 'text-red-500'">local_pharmacy</span>
+          </div>
+          <div class="min-w-0">
+            <h3 class="font-black text-lg text-text-main leading-tight truncate">{{ s.nombre }}</h3>
+            <span [class]="'text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ' + clasesEstado(s.estado)">
+              <span class="material-symbols-outlined icon-fill text-[11px]">{{ iconoEstado(s.estado) }}</span>
+              {{ etiquetaEstado(s.estado) }}
+            </span>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarDetalle()"
+                class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors" aria-label="Cerrar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <!-- Cuerpo -->
+      <div class="px-6 py-5 overflow-y-auto flex flex-col gap-5">
+
+        <!-- KPIs del día -->
+        @if (kpiDe(s.id); as k) {
+          <div>
+            <p class="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">Hoy</p>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-background-light rounded-lg p-3 text-center">
+                <p class="text-base font-black text-text-main tabular-nums leading-none">{{ formatSol(k.totalVendido) }}</p>
+                <p class="text-[10px] text-text-secondary mt-1">Ventas</p>
+              </div>
+              <div class="bg-background-light rounded-lg p-3 text-center">
+                <p class="text-base font-black text-text-main tabular-nums leading-none">{{ k.tickets }}</p>
+                <p class="text-[10px] text-text-secondary mt-1">Tickets</p>
+              </div>
+              <div class="bg-background-light rounded-lg p-3 text-center">
+                <p class="text-base font-black text-text-main tabular-nums leading-none">{{ formatSol(k.ticketPromedio) }}</p>
+                <p class="text-[10px] text-text-secondary mt-1">Ticket prom.</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-wrap mt-2">
+              @if (k.cajaAbierta) {
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                  <span class="size-1.5 rounded-full bg-emerald-500"></span> Caja abierta @if (k.cajeroCaja) { · {{ k.cajeroCaja }} }
+                </span>
+              } @else {
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                  <span class="size-1.5 rounded-full bg-slate-400"></span> Caja cerrada
+                </span>
+              }
+              @if (k.stockCritico > 0) { <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">{{ k.stockCritico }} stock bajo</span> }
+              @if (k.alertasVencimiento > 0) { <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-500">{{ k.alertasVencimiento }} por vencer</span> }
+            </div>
+          </div>
+        }
+
+        <!-- Datos -->
+        <div>
+          <p class="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">Datos</p>
+          <div class="flex flex-col gap-2 text-sm">
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">Dirección</span><span class="text-text-main text-right">{{ s.direccion || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">Distrito</span><span class="text-text-main">{{ s.distrito || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">Teléfono</span><span class="text-text-main">{{ s.telefono || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">Series</span><span class="text-text-main font-mono">{{ s.serieBoleta || '—' }} / {{ s.serieFactura || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">QR Yape</span><span class="text-text-main truncate max-w-[60%] text-right">{{ s.qrYape || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">QR Plin</span><span class="text-text-main truncate max-w-[60%] text-right">{{ s.qrPlin || '—' }}</span></div>
+            <div class="flex justify-between gap-3"><span class="text-text-secondary">Encargado</span><span class="text-text-main">{{ s.responsableNombre || 'Sin asignar' }}</span></div>
+            @if (s.email) {
+              <div class="flex justify-between gap-3"><span class="text-text-secondary">Email</span><span class="text-text-main truncate max-w-[60%] text-right">{{ s.email }}</span></div>
+            }
+            @if (s.horarioApertura || s.horarioCierre) {
+              <div class="flex justify-between gap-3"><span class="text-text-secondary">Horario</span><span class="text-text-main">{{ s.horarioApertura || '—' }} – {{ s.horarioCierre || '—' }}</span></div>
+            }
+            @if (s.metaVentaMensual) {
+              <div class="flex justify-between gap-3"><span class="text-text-secondary">Meta mensual</span><span class="text-text-main tabular-nums">{{ formatSol(s.metaVentaMensual) }}</span></div>
+            }
+          </div>
+        </div>
+
+        <!-- Usuarios asignados -->
+        <div>
+          <p class="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">
+            Personal asignado ({{ usuariosDe(s.id).length }})
+          </p>
+          <div class="flex flex-col gap-1.5">
+            @for (u of usuariosDe(s.id); track u.id) {
+              <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-background-light">
+                <div class="size-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0">
+                  {{ (u.nombres.charAt(0) + u.apellidos.charAt(0)).toUpperCase() }}
+                </div>
+                <span class="text-sm text-text-main flex-1 truncate">{{ nombreUsuario(u) }}</span>
+                <span class="text-[10px] text-text-secondary">{{ u.roles[0] }}</span>
+              </div>
+            } @empty {
+              <p class="text-xs text-text-secondary italic px-2">Sin personal asignado a esta botica.</p>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie -->
+      <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl shrink-0">
+        @if (puedeGestionar()) {
+          <button type="button" (click)="cerrarDetalle(); abrirEdicion(s)"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px]">edit</span> Editar
+          </button>
+        }
+        <button type="button" (click)="cerrarDetalle()"
+                class="h-10 px-5 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+}

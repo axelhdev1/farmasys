@@ -1,0 +1,119 @@
+<div class="max-w-3xl mx-auto flex flex-col gap-5">
+
+  <!-- Aviso de primer login (obligatorio) -->
+  @if (forzar()) {
+    <div class="p-4 rounded-xl bg-accent-orange/10 border border-accent-orange/25 flex items-start gap-3">
+      <span class="material-symbols-outlined text-accent-orange-ink text-[22px] shrink-0">lock_reset</span>
+      <div>
+        <p class="text-sm font-bold text-text-main">Cambia tu contraseña para continuar</p>
+        <p class="text-xs text-text-secondary mt-0.5">
+          Por seguridad, debes reemplazar la contraseña temporal que te dio el administrador
+          antes de usar el sistema.
+        </p>
+      </div>
+    </div>
+  }
+
+  <!-- Cabecera de identidad -->
+  @if (usuario(); as u) {
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex items-center gap-4">
+      <div class="size-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-lg shrink-0">
+        {{ iniciales() }}
+      </div>
+      <div class="min-w-0">
+        <h2 class="text-lg font-bold text-text-main truncate">{{ u.nombres }} {{ u.apellidos }}</h2>
+        <p class="text-sm text-text-secondary truncate">{{ u.email }}</p>
+        <span class="inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+          {{ rolPrincipal() }}
+        </span>
+      </div>
+    </div>
+  }
+
+  <!-- Datos personales -->
+  <section class="bg-surface rounded-xl p-5 shadow-soft border border-border-color"
+           [class.opacity-50]="forzar()" [class.pointer-events-none]="forzar()">
+    <h3 class="text-sm font-bold text-text-main mb-4">Datos personales</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label for="p-nombres" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Nombres</label>
+        <input id="p-nombres" type="text" [ngModel]="nombres()" (ngModelChange)="nombres.set($event)"
+               class="block w-full px-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all" />
+      </div>
+      <div>
+        <label for="p-apellidos" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Apellidos</label>
+        <input id="p-apellidos" type="text" [ngModel]="apellidos()" (ngModelChange)="apellidos.set($event)"
+               class="block w-full px-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all" />
+      </div>
+      <div>
+        <label for="p-tel" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Teléfono</label>
+        <input id="p-tel" type="tel" [ngModel]="telefono()" (ngModelChange)="telefono.set($event)" placeholder="987654321"
+               class="block w-full px-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all" />
+      </div>
+    </div>
+    <div class="flex justify-end mt-4">
+      <button type="button" (click)="guardarPerfil()" [disabled]="guardandoPerfil()"
+              class="bg-primary hover:bg-primary-700 disabled:opacity-60 text-white h-10 px-5 rounded-lg font-bold text-sm inline-flex items-center gap-2 transition-colors">
+        @if (guardandoPerfil()) { <span class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span> }
+        Guardar cambios
+      </button>
+    </div>
+  </section>
+
+  <!-- Cambio de contraseña -->
+  <section class="bg-surface rounded-xl p-5 shadow-soft border"
+           [class]="forzar() ? 'border-accent-orange/40 ring-1 ring-accent-orange/20' : 'border-border-color'">
+    <h3 class="text-sm font-bold text-text-main mb-1">Cambiar contraseña</h3>
+    <p class="text-xs text-text-secondary mb-4">Mínimo 8 caracteres e incluir al menos un número.</p>
+
+    <div class="flex flex-col gap-4 max-w-md">
+      <div>
+        <label for="p-actual" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Contraseña actual</label>
+        <div class="relative">
+          <input id="p-actual" [type]="verActual() ? 'text' : 'password'" [ngModel]="actual()" (ngModelChange)="actual.set($event)"
+                 autocomplete="current-password"
+                 class="block w-full px-3 pr-10 py-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all" />
+          <button type="button" (click)="verActual.set(!verActual())"
+                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-primary"
+                  [attr.aria-label]="verActual() ? 'Ocultar' : 'Mostrar'">
+            <span class="material-symbols-outlined text-[20px]">{{ verActual() ? 'visibility_off' : 'visibility' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label for="p-nueva" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Nueva contraseña</label>
+        <div class="relative">
+          <input id="p-nueva" [type]="verNueva() ? 'text' : 'password'" [ngModel]="nueva()" (ngModelChange)="nueva.set($event)"
+                 autocomplete="new-password"
+                 class="block w-full px-3 pr-10 py-2.5 bg-background-light border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+                 [class]="errorNueva() ? 'border-accent-red' : 'border-border-color focus:border-primary/40'" />
+          <button type="button" (click)="verNueva.set(!verNueva())"
+                  class="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-primary"
+                  [attr.aria-label]="verNueva() ? 'Ocultar' : 'Mostrar'">
+            <span class="material-symbols-outlined text-[20px]">{{ verNueva() ? 'visibility_off' : 'visibility' }}</span>
+          </button>
+        </div>
+        @if (errorNueva()) { <p class="text-[11px] text-accent-red-ink font-semibold mt-1">{{ errorNueva() }}</p> }
+      </div>
+
+      <div>
+        <label for="p-conf" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Confirmar nueva contraseña</label>
+        <input id="p-conf" [type]="verNueva() ? 'text' : 'password'" [ngModel]="confirmar()" (ngModelChange)="confirmar.set($event)"
+               autocomplete="new-password"
+               class="block w-full px-3 py-2.5 bg-background-light border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+               [class]="errorConfirmar() ? 'border-accent-red' : 'border-border-color focus:border-primary/40'" />
+        @if (errorConfirmar()) { <p class="text-[11px] text-accent-red-ink font-semibold mt-1">{{ errorConfirmar() }}</p> }
+      </div>
+
+      <div class="flex justify-end">
+        <button type="button" (click)="cambiarPassword()" [disabled]="!passwordValido() || cambiandoPwd()"
+                class="bg-primary hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed text-white h-10 px-5 rounded-lg font-bold text-sm inline-flex items-center gap-2 transition-colors">
+          @if (cambiandoPwd()) { <span class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span> }
+          Cambiar contraseña
+        </button>
+      </div>
+    </div>
+  </section>
+
+</div>

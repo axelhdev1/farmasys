@@ -1,0 +1,9 @@
+/**
+ * El <app-main-layout> también es un wrapper de Angular.
+ * display:contents lo hace transparente para el layout del <body>,
+ * permitiendo que el div interno con h-screen ocupe correctamente
+ * todo el viewport sin depender de que el host tenga height:100%.
+ */
+:host {
+  display: contents;
+}

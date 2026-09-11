@@ -1,0 +1,14 @@
+/**
+ * :host { display: contents }
+ *
+ * El elemento <app-header> es un wrapper de Angular entre el flex column
+ * del main-layout y el <header> real.
+ * Sin esta regla el flex algorithm ve <app-header> sin height/shrink definidos
+ * y puede calcular mal la altura del contenido principal.
+ *
+ * Con display:contents el wrapper desaparece y el <header> (h-16, shrink-0,
+ * sticky top-0) pasa a ser flex item directo del contenedor columna.
+ */
+:host {
+  display: contents;
+}

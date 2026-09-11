@@ -1,0 +1,25 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Frontend Angular servido con nginx. Dos etapas: se compila con Node y el
+# resultado estático lo sirve nginx. Así la laptop NO necesita Node ni Angular.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Etapa 1: compilar ────────────────────────────────────────────────────────
+FROM node:20-slim AS build
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+# Configuración "development": usa src/environments/environment.ts, que apunta a
+# http://localhost:3000 (la API en la MISMA laptop). Además evita los
+# presupuestos de tamaño de "production", que podrían hacer fallar el build por
+# el peso de las librerías de gráficos. Para un demo local es lo correcto.
+RUN npx ng build --configuration development
+
+# ── Etapa 2: servir ──────────────────────────────────────────────────────────
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist/sistema-botica/browser /usr/share/nginx/html
+EXPOSE 80

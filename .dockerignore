@@ -1,0 +1,11 @@
+# Contexto de build del FRONTEND (Dockerfile.frontend usa la raíz como contexto).
+# Se excluye todo lo pesado o ajeno al build de Angular para que la imagen se
+# construya rápido.
+node_modules
+dist
+.angular
+.git
+.vscode
+backend
+*.log
+*.md

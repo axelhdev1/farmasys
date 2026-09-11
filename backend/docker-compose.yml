@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-farmasys}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Respaldos automáticos de la base de datos. Reutiliza la imagen de postgres
+  # (ya descargada) solo por su pg_dump/pg_restore. Arranca con el resto del
+  # stack y hace un volcado diario a ./backups en tu disco. No expone puertos
+  # ni toca a la API: es un proceso de fondo independiente.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-farmasys}
+      DB_HOST: postgres
+      BACKUP_DIR: /backups
+      BACKUP_HOUR: ${BACKUP_HOUR:-23}    # hora del respaldo diario (0-23)
+      BACKUP_KEEP: ${BACKUP_KEEP:-30}    # cuántos respaldos conservar
+      # Copia FUERA del disco de la base. Se activa montando una carpeta en
+      # /espejo (ver el volumen comentado abajo): apúntala a tu carpeta de
+      # Google Drive / OneDrive / disco externo.
+      BACKUP_ESPEJO: ${BACKUP_ESPEJO:-}
+      BACKUP_ESPEJO_KEEP: ${BACKUP_ESPEJO_KEEP:-90}
+    volumes:
+      - ./backups:/backups               # ← los respaldos quedan en tu PC
+      - ./scripts:/scripts:ro
+      # ── COPIA FUERA DEL DISCO (recomendado en producción) ──────────────
+      # Descomenta y cambia la ruta por tu carpeta sincronizada con la nube.
+      # Después, en el .env:  BACKUP_ESPEJO=/espejo
+      #
+      #   Windows:  - "C:/Users/TU_USUARIO/Google Drive/FarmaSys:/espejo"
+      #   Linux:    - "/home/usuario/Dropbox/FarmaSys:/espejo"
+      #
+      # - ./espejo:/espejo
+    entrypoint: ["sh", "/scripts/backup-loop.sh"]
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-farmasys}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-cambiar}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-cambiar}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+      JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  # Frontend Angular servido con nginx en http://localhost:4200. Su contexto de
+  # build es la RAÍZ del repo (una carpeta arriba de este compose), donde está
+  # el código Angular y el Dockerfile.frontend. El puerto 4200 coincide con el
+  # CORS del backend, así que el navegador puede hablar con la API sin cambios.
+  frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "4200:80"
+
+volumes:
+  pgdata:

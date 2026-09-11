@@ -1,0 +1,343 @@
+<div class="flex flex-col gap-5 max-w-6xl mx-auto">
+
+  <!-- ── Encabezado ─────────────────────────────────────────────────── -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h2 class="text-xl font-bold text-text-main leading-tight">Configuración</h2>
+      <p class="text-sm text-text-secondary mt-0.5">Datos de la empresa y parámetros globales del sistema</p>
+    </div>
+    @if (puedeEditar()) {
+      <button type="button" (click)="guardar()" [disabled]="guardando()"
+              class="h-10 px-5 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors active:scale-95 shadow-sm shadow-primary/20 disabled:opacity-40">
+        @if (guardando()) {
+          <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+          Guardando…
+        } @else {
+          <span class="material-symbols-outlined text-[18px]">save</span>
+          Guardar cambios
+        }
+      </button>
+    }
+  </div>
+
+  <div class="flex flex-col lg:flex-row gap-5">
+
+    <!-- ── Menú lateral ───────────────────────────────────────────────── -->
+    <aside class="lg:w-60 shrink-0">
+      <div class="bg-surface rounded-2xl border border-border-color overflow-hidden">
+        @for (s of secciones; track s.id) {
+          <button type="button" (click)="irSeccion(s.id)"
+                  [class]="seccionActiva() === s.id
+                    ? 'w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border-color last:border-0 transition-colors bg-primary/5'
+                    : 'w-full text-left px-4 py-3 flex items-start gap-3 border-b border-border-color last:border-0 transition-colors hover:bg-background-light'">
+            <span class="material-symbols-outlined text-[20px] shrink-0 mt-0.5"
+                  [class.text-primary]="seccionActiva() === s.id"
+                  [class.text-text-secondary]="seccionActiva() !== s.id">{{ s.icon }}</span>
+            <span class="min-w-0">
+              <span class="block text-sm font-bold" [class.text-primary]="seccionActiva() === s.id" [class.text-text-main]="seccionActiva() !== s.id">{{ s.label }}</span>
+              <span class="block text-[11px] text-text-secondary leading-tight">{{ s.desc }}</span>
+            </span>
+          </button>
+        }
+      </div>
+    </aside>
+
+    <!-- ── Contenido ──────────────────────────────────────────────────── -->
+    <div class="flex-1 min-w-0">
+      <div class="bg-surface rounded-2xl border border-border-color p-6">
+
+        @if (cargando()) {
+          <div class="space-y-4">
+            @for (s of [1,2,3,4]; track s) {
+              <div class="space-y-2"><div class="fs-skeleton h-3 w-24 rounded"></div><div class="fs-skeleton h-10 w-full rounded-lg"></div></div>
+            }
+          </div>
+        } @else {
+
+        <!-- ═══ DATOS DE LA EMPRESA ═══ -->
+        @if (seccionActiva() === 'farmacia') {
+          <div class="flex flex-col gap-4 fs-fade-in-up">
+            <h3 class="text-base font-bold text-text-main">Datos de la empresa emisora</h3>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Razón social <span class="text-accent-red-ink">*</span></label>
+              <input type="text" [(ngModel)]="form.razonSocial" [disabled]="!puedeEditar()"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">RUC <span class="text-accent-red-ink">*</span></label>
+                <input type="text" maxlength="11" [(ngModel)]="form.ruc" [disabled]="!puedeEditar()"
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                @if (validarRuc()) { <p class="text-[11px] text-accent-red-ink mt-1">{{ validarRuc() }}</p> }
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Teléfono</label>
+                <input type="text" [(ngModel)]="form.telefono" [disabled]="!puedeEditar()"
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Dirección fiscal</label>
+              <input type="text" [(ngModel)]="form.direccionFiscal" [disabled]="!puedeEditar()"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Email</label>
+              <input type="email" [(ngModel)]="form.email" [disabled]="!puedeEditar()"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+              @if (validarEmail()) { <p class="text-[11px] text-accent-red-ink mt-1">{{ validarEmail() }}</p> }
+            </div>
+
+            <div class="border-t border-border-color pt-4 mt-1">
+              <div class="flex items-center gap-2 mb-3 flex-wrap">
+                <p class="text-xs font-bold text-text-secondary uppercase tracking-wider">Regencia / DIGEMID</p>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                  Se guardan · aún no se imprimen
+                </span>
+              </div>
+              <p class="text-[11px] text-text-secondary mb-3 flex items-start gap-1">
+                <span class="material-symbols-outlined text-[13px] mt-px">info</span>
+                <span>Puedes cargarlos ya, pero hoy no salen en ningún documento: se empiezan a usar
+                  cuando se active la <strong>facturación electrónica</strong>, que es donde van en el
+                  comprobante formal de una botica.</span>
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Director técnico (Q.F.)</label>
+                  <input type="text" [(ngModel)]="form.directorTecnico" [disabled]="!puedeEditar()"
+                         class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Colegiatura</label>
+                  <input type="text" [(ngModel)]="form.colegiatura" [disabled]="!puedeEditar()"
+                         class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Registro sanitario</label>
+                  <input type="text" [(ngModel)]="form.registroSanitario" [disabled]="!puedeEditar()"
+                         class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Licencia de funcionamiento</label>
+                  <input type="text" [(ngModel)]="form.licenciaFuncionamiento" [disabled]="!puedeEditar()"
+                         class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                </div>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ═══ COMPROBANTES ═══ -->
+        @if (seccionActiva() === 'comprobantes') {
+          <div class="flex flex-col gap-4 fs-fade-in-up">
+            <h3 class="text-base font-bold text-text-main">Comprobante / ticket</h3>
+
+            <!-- Series: solo lectura (se editan por sucursal) -->
+            <div class="p-3 bg-primary-50/50 border border-primary-100 rounded-lg flex items-start gap-2">
+              <span class="material-symbols-outlined text-primary text-[18px] shrink-0">info</span>
+              <div class="text-xs text-text-secondary">
+                Las <b>series y correlativos</b> son por sucursal. Se editan en
+                <b>Sucursales</b>. @if (sucursalActiva(); as s) { <span class="block mt-1 font-mono text-text-main">{{ s.nombre }}: Boleta {{ s.serieBoleta }} · Factura {{ s.serieFactura }}</span> }
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Pie de ticket</label>
+              <textarea rows="2" [(ngModel)]="form.pieTicket" [disabled]="!puedeEditar()"
+                        placeholder="¡Gracias por su compra! Conserve su comprobante."
+                        class="block w-full px-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all resize-none disabled:opacity-60"></textarea>
+              <p class="text-[11px] text-text-secondary mt-1">Aparece al final del ticket impreso.</p>
+            </div>
+
+            <div class="border border-dashed border-border-color rounded-xl p-4 bg-background-light/50">
+              <div class="flex items-center gap-2 mb-3 flex-wrap">
+                <p class="text-xs font-bold text-text-secondary uppercase tracking-wider">Formato del ticket</p>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-text-secondary">
+                  Próximamente
+                </span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-60">
+                <div>
+                  <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Tipo de impresión</label>
+                  <select [(ngModel)]="form.tipoImpresion" disabled
+                          class="block w-full px-3 h-10 bg-white border border-border-color rounded-lg text-sm font-medium disabled:opacity-60">
+                    @for (o of opcionesImpresion; track o.valor) { <option [value]="o.valor">{{ o.label }}</option> }
+                  </select>
+                </div>
+                <label class="flex items-center gap-2 mt-6">
+                  <input type="checkbox" [(ngModel)]="form.logoEnTicket" disabled class="size-4 accent-primary"/>
+                  <span class="text-sm text-text-main">Mostrar logo en el ticket</span>
+                </label>
+              </div>
+              <p class="text-[11px] text-text-secondary mt-3">
+                El ticket sale hoy en <strong>térmica 80&nbsp;mm y sin logo</strong>. Cambiar esto
+                todavía no tiene efecto, por eso está bloqueado: un campo que se guarda y no hace
+                nada confunde más que no tenerlo.
+              </p>
+            </div>
+          </div>
+        }
+
+        <!-- ═══ SISTEMA ═══ -->
+        @if (seccionActiva() === 'sistema') {
+          <div class="flex flex-col gap-4 fs-fade-in-up">
+            <h3 class="text-base font-bold text-text-main">Parámetros del sistema</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">IGV (%)</label>
+                <input type="number" min="0" max="50" step="0.01" [(ngModel)]="form.igvPorcentaje" [disabled]="!puedeEditar()"
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+              </div>
+              <div class="opacity-60">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Moneda
+                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 normal-case tracking-normal">Fija</span>
+                </label>
+                <input type="text" [(ngModel)]="form.moneda" disabled
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm disabled:opacity-60"/>
+              </div>
+              <div class="opacity-60">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                  Símbolo
+                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 normal-case tracking-normal">Fijo</span>
+                </label>
+                <input type="text" [(ngModel)]="form.simbolo" disabled
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm disabled:opacity-60"/>
+              </div>
+            </div>
+            <p class="text-[11px] text-text-secondary -mt-2 flex items-start gap-1">
+              <span class="material-symbols-outlined text-[13px] mt-px">info</span>
+              <span>Este porcentaje es el que el sistema usa <strong>de verdad</strong> para calcular el IGV
+                de cada venta y de cada compra. En Perú hoy es 18. Cámbialo solo si la tasa oficial cambia.
+                <br>La <strong>moneda está fija en soles</strong>: todo el sistema opera en S/, así que
+                cambiarla no tendría efecto y por eso no se edita.</span>
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border-color pt-4">
+              <div>
+                <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Alerta de vencimiento (días)</label>
+                <input type="number" min="1" max="365" [(ngModel)]="form.alertaVencimientoDias" [disabled]="!puedeEditar()"
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                <p class="text-[11px] text-text-secondary mt-1">Con cuánta anticipación se avisa de un lote por vencer. 1 a 365.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Stock mínimo por defecto</label>
+                <input type="number" min="0" max="1000" [(ngModel)]="form.stockMinimoDefault" [disabled]="!puedeEditar()"
+                       class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+                <p class="text-[11px] text-text-secondary mt-1">Se aplica a productos nuevos que no traen un mínimo propio.</p>
+              </div>
+            </div>
+            <div class="border-t border-border-color pt-4">
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Umbral de descuadre de caja (S/)</label>
+              <input type="number" min="0" max="1000" step="0.01" [(ngModel)]="form.umbralDescuadreCaja" [disabled]="!puedeEditar()"
+                     class="block w-full sm:max-w-xs px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all disabled:opacity-60"/>
+              <p class="text-[11px] text-text-secondary mt-1">
+                Si al cerrar caja la diferencia entre lo contado y lo esperado supera este monto, el cajero
+                <strong>tiene que escribir un motivo</strong> antes de poder cerrar. Cuanto más alto, menos control.
+              </p>
+            </div>
+          </div>
+        }
+
+        <!-- ═══ SEGURIDAD (informativo) ═══ -->
+        @if (seccionActiva() === 'seguridad') {
+          <div class="flex flex-col gap-3 fs-fade-in-up">
+            <h3 class="text-base font-bold text-text-main">Seguridad</h3>
+            <p class="text-sm text-text-secondary">Estos controles los gestiona el sistema (no son editables desde aquí).</p>
+            <div class="flex flex-col divide-y divide-border-color border border-border-color rounded-xl overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3">
+                <span class="text-sm text-text-main flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-text-secondary">lock</span>Intentos de login</span>
+                <span class="text-sm font-bold text-text-main">15 por minuto y por terminal</span>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3">
+                <span class="text-sm text-text-main flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-text-secondary">schedule</span>Sesión</span>
+                <span class="text-sm font-bold text-text-main">Token de acceso 15 min + refresh 7 días</span>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3">
+                <span class="text-sm text-text-main flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-text-secondary">password</span>Contraseñas</span>
+                <span class="text-sm font-bold text-text-main">Cifradas con bcrypt</span>
+              </div>
+              <div class="flex items-center justify-between px-4 py-3">
+                <span class="text-sm text-text-main flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-text-secondary">backup</span>Backups</span>
+                <span class="text-sm font-bold text-text-main">Gestionados por infraestructura</span>
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ═══ HISTORIAL DE CAMBIOS ═══ -->
+        @if (seccionActiva() === 'historial') {
+          <div class="flex flex-col gap-4 fs-fade-in-up">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h3 class="text-base font-bold text-text-main">Historial de cambios</h3>
+                <p class="text-sm text-text-secondary mt-0.5">Cada ajuste modificado, con quién lo hizo y qué valor tenía antes.</p>
+              </div>
+              <button type="button" (click)="cargarHistorial(true)" [disabled]="cargandoHistorial()"
+                      class="h-9 px-3 border border-border-color rounded-lg text-xs font-bold text-text-secondary hover:bg-background-light flex items-center gap-1.5 transition-colors disabled:opacity-40">
+                <span class="material-symbols-outlined text-[16px]">refresh</span>
+                Actualizar
+              </button>
+            </div>
+
+            @if (cargandoHistorial()) {
+              <div class="space-y-2">
+                @for (s of [1,2,3,4]; track s) { <div class="fs-skeleton h-12 w-full rounded-lg"></div> }
+              </div>
+            } @else if (historial().length === 0) {
+              <div class="border border-border-color rounded-xl px-4 py-10 text-center">
+                <span class="material-symbols-outlined text-[32px] text-text-secondary/50">history</span>
+                <p class="text-sm text-text-secondary mt-2">Todavía no se ha modificado ningún ajuste.</p>
+                <p class="text-xs text-text-secondary/70 mt-1">A partir de ahora, cada cambio queda registrado aquí.</p>
+              </div>
+            } @else {
+              <div class="border border-border-color rounded-xl overflow-hidden overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-background-light">
+                    <tr class="text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+                      <th class="px-4 py-2.5">Ajuste</th>
+                      <th class="px-4 py-2.5">Antes</th>
+                      <th class="px-4 py-2.5">Después</th>
+                      <th class="px-4 py-2.5">Quién</th>
+                      <th class="px-4 py-2.5 whitespace-nowrap">Cuándo</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-border-color">
+                    @for (c of historial(); track c.id) {
+                      <tr class="hover:bg-background-light/60 transition-colors">
+                        <td class="px-4 py-2.5">
+                          <span class="flex items-center gap-1.5 font-bold text-text-main">
+                            @if (esSensible(c.campo)) {
+                              <span class="material-symbols-outlined text-[15px] text-amber-500" title="Afecta dinero o controles">warning</span>
+                            }
+                            {{ etiqueta(c.campo) }}
+                          </span>
+                        </td>
+                        <td class="px-4 py-2.5 text-text-secondary tabular-nums">{{ c.anterior || '—' }}</td>
+                        <td class="px-4 py-2.5 text-text-main font-medium tabular-nums">{{ c.nuevo || '—' }}</td>
+                        <td class="px-4 py-2.5 text-text-secondary">{{ c.nombre }}</td>
+                        <td class="px-4 py-2.5 text-text-secondary whitespace-nowrap tabular-nums">{{ fechaLegible(c.fecha) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="text-[11px] text-text-secondary flex items-start gap-1">
+                <span class="material-symbols-outlined text-[13px] mt-px">lock</span>
+                <span>Este registro no se puede editar ni borrar desde el sistema. Se muestran los últimos 50 cambios.</span>
+              </p>
+            }
+          </div>
+        }
+
+        @if (!puedeEditar()) {
+          <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">lock</span>
+            Solo un administrador puede editar la configuración.
+          </div>
+        }
+
+        }
+      </div>
+    </div>
+  </div>
+</div>

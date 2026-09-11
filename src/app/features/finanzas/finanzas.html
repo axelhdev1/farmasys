@@ -1,0 +1,697 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-5">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────── -->
+  <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Finanzas</h2>
+      <p class="text-text-secondary text-sm mt-1">Estado de resultados, márgenes y gastos · {{ labelPeriodo() }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- Selector de período -->
+      <div class="flex bg-background-light rounded-lg p-0.5 border border-border-color">
+        @for (p of [['hoy','Hoy'],['semana','7 días'],['mes','Mes'],['anio','Año']]; track p[0]) {
+          <button type="button" (click)="setPeriodo($any(p[0]))"
+                  class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
+                  [class.bg-surface]="periodo() === p[0]"
+                  [class.text-primary]="periodo() === p[0]"
+                  [class.shadow-sm]="periodo() === p[0]"
+                  [class.text-text-secondary]="periodo() !== p[0]">
+            {{ p[1] }}
+          </button>
+        }
+      </div>
+      <button type="button" (click)="exportarCSV()"
+              class="h-9 px-3 bg-surface hover:bg-background-light text-text-main border border-border-color rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors active:scale-95">
+        <span class="material-symbols-outlined text-[18px] text-green-600">table_view</span>Exportar
+      </button>
+      <button type="button" (click)="abrirGasto()"
+              class="h-9 px-3 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors active:scale-95 shadow-sm shadow-primary/20">
+        <span class="material-symbols-outlined text-[18px]">add</span>Registrar gasto
+      </button>
+      <button type="button" (click)="abrirFijos()"
+              class="h-9 px-3 border border-border-color bg-surface hover:bg-background-light text-text-main rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">event_repeat</span>Gastos fijos
+        @if (hayPendientes()) {
+          <span class="size-5 rounded-full bg-accent-orange text-white text-[11px] font-black flex items-center justify-center">{{ pendientes()?.pendientes?.length }}</span>
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Gastos fijos sin registrar ───────────────────────────────────── -->
+  @if (pendientes(); as p) {
+    @if (p.pendientes.length > 0) {
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <span class="material-symbols-outlined text-[24px] text-amber-600 shrink-0">event_repeat</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-amber-900">
+            Faltan {{ p.pendientes.length }} gasto(s) fijo(s) por registrar · {{ formatSol(p.total) }}
+          </p>
+          <p class="text-xs text-amber-800 mt-0.5">
+            Mientras no se registren, la utilidad neta sale más alta de lo real.
+          </p>
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            @for (x of p.pendientes; track x.clave) {
+              <span class="text-[11px] bg-white/70 border border-amber-200 rounded-md px-2 py-1 text-amber-900">
+                {{ x.descripcion }} · {{ mesLegible(x.anio, x.mes) }} · {{ formatSol(x.monto) }}
+              </span>
+            }
+          </div>
+        </div>
+        <button type="button" (click)="aplicarPendientes()" [disabled]="aplicando()"
+                class="h-9 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 shrink-0">
+          @if (aplicando()) {
+            <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            Registrando…
+          } @else {
+            Registrarlos
+          }
+        </button>
+      </div>
+    }
+  }
+
+  <!-- ── Estado de carga ──────────────────────────────────────────────── -->
+  @if (cargando() && !pyl()) {
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      @for (s of [1,2,3,4]; track s) {
+        <div class="bg-surface rounded-xl border border-border-color p-5 space-y-3">
+          <div class="fs-skeleton h-3 w-24 rounded"></div>
+          <div class="fs-skeleton h-7 w-32 rounded"></div>
+          <div class="fs-skeleton h-3 w-20 rounded"></div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── KPIs ─────────────────────────────────────────────────────────── -->
+  @if (pyl(); as p) {
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 fs-stagger">
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-text-secondary text-xs font-bold uppercase tracking-wide">Ventas</span>
+          <span class="material-symbols-outlined text-[20px] text-primary">payments</span>
+        </div>
+        <p class="text-2xl font-black text-text-main tabular-nums">{{ formatSol(p.ventasTotales) }}</p>
+        <div class="flex items-center justify-between mt-1 gap-1">
+          <span class="text-xs text-text-secondary">{{ p.tickets }} tickets</span>
+          @if (crecimientoVentas() !== null) {
+            <span class="text-[11px] font-bold inline-flex items-center gap-0.5 shrink-0"
+                  [class.text-emerald-600]="deltaPos(crecimientoVentas())" [class.text-accent-red-ink]="!deltaPos(crecimientoVentas())">
+              <span class="material-symbols-outlined text-[12px]">{{ deltaPos(crecimientoVentas()) ? 'trending_up' : 'trending_down' }}</span>{{ deltaLabel(crecimientoVentas()) }}
+            </span>
+          }
+        </div>
+        <!-- E8: en una botica enero no se parece a diciembre, pero sí al enero
+             pasado. Por eso además del período anterior se compara el año. -->
+        @if (deltaAnioVentas(); as da) {
+          <p class="text-[11px] font-semibold mt-1 pt-1 border-t border-border-color"
+             [class]="da.positivo ? 'text-emerald-600' : 'text-accent-red-ink'">
+            {{ da.texto }}
+          </p>
+        }
+      </div>
+
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-text-secondary text-xs font-bold uppercase tracking-wide">Utilidad bruta</span>
+          <span class="material-symbols-outlined text-[20px] text-emerald-600">trending_up</span>
+        </div>
+        <p class="text-2xl font-black text-text-main tabular-nums">{{ formatSol(p.utilidadBruta) }}</p>
+        <p class="text-xs text-emerald-600 font-bold mt-0.5">Margen {{ pct(p.margenBruto) }}</p>
+      </div>
+
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-text-secondary text-xs font-bold uppercase tracking-wide">Utilidad neta</span>
+          <span class="material-symbols-outlined text-[20px] text-violet-600">savings</span>
+        </div>
+        <p class="text-2xl font-black tabular-nums" [class.text-text-main]="num(p.utilidadNeta) >= 0" [class.text-accent-red-ink]="num(p.utilidadNeta) < 0">
+          {{ formatSol(p.utilidadNeta) }}
+        </p>
+        <div class="flex items-center justify-between mt-0.5 gap-1">
+          <span class="text-xs font-bold" [class.text-violet-600]="num(p.utilidadNeta) >= 0" [class.text-accent-red-ink]="num(p.utilidadNeta) < 0">Margen {{ pct(p.margenNeto) }}</span>
+          @if (crecimientoUtilidad() !== null) {
+            <span class="text-[11px] font-bold inline-flex items-center gap-0.5 shrink-0"
+                  [class.text-emerald-600]="deltaPos(crecimientoUtilidad())" [class.text-accent-red-ink]="!deltaPos(crecimientoUtilidad())">
+              <span class="material-symbols-outlined text-[12px]">{{ deltaPos(crecimientoUtilidad()) ? 'trending_up' : 'trending_down' }}</span>{{ deltaLabel(crecimientoUtilidad()) }}
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-red-100">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-text-secondary text-xs font-bold uppercase tracking-wide">Gastos</span>
+          <span class="material-symbols-outlined text-[20px] text-accent-red-ink">receipt_long</span>
+        </div>
+        <p class="text-2xl font-black text-accent-red-ink tabular-nums">{{ formatSol(p.gastos) }}</p>
+        <p class="text-xs text-text-secondary mt-0.5">
+          operativos
+          @if (num(p.perdidaMermas) > 0) {
+            · <span class="text-accent-orange-ink font-bold">{{ formatSol(p.perdidaMermas) }} en mermas</span>
+          }
+        </p>
+      </div>
+    </div>
+  }
+
+  <!-- ── Meta del mes ─────────────────────────────────────────────────── -->
+  @if (metaInfo().hay) {
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-bold text-text-main flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[18px] text-primary">flag</span>
+          Meta del mes
+        </span>
+        <span class="text-sm font-black text-primary tabular-nums">{{ metaInfo().pct }}%</span>
+      </div>
+      <div class="h-3 bg-background-light rounded-full overflow-hidden">
+        <div class="h-full rounded-full bg-primary transition-all duration-700" [style.width.%]="metaInfo().pct"></div>
+      </div>
+      <p class="text-xs text-text-secondary mt-1.5 tabular-nums">
+        {{ formatSol(metaInfo().venta) }} de {{ formatSol(metaInfo().meta) }}
+      </p>
+    </div>
+  }
+
+  <!-- ── Capital en stock · equilibrio diario · IGV ────────────────────── -->
+  @if (pyl(); as p) {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Capital en stock + días de inventario -->
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex items-center gap-3">
+        <div class="size-10 rounded-lg bg-sky-50 text-sky-500 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[20px]">inventory_2</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-lg font-black text-text-main tabular-nums leading-none">{{ formatSol(p.valorInventario) }}</p>
+          <p class="text-xs text-text-secondary mt-1">
+            Capital en stock
+            @if (inventario()?.dias !== null && inventario()?.dias !== undefined) {
+              · <span class="font-semibold">{{ diasTexto(inventario()!.dias) }}</span> de venta
+            }
+          </p>
+        </div>
+      </div>
+
+      <!-- E9: lo que hay que vender por día para no perder -->
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex items-center gap-3">
+        <div class="size-10 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[20px]">balance</span>
+        </div>
+        <div class="min-w-0">
+          @if (equilibrioDiario(); as eq) {
+            <p class="text-lg font-black text-text-main tabular-nums leading-none">{{ formatSol(eq.porDia) }}<span class="text-xs font-bold text-text-secondary">/día</span></p>
+            <p class="text-xs mt-1" [class]="eq.cubierto ? 'text-emerald-600 font-semibold' : 'text-accent-red-ink font-semibold'">
+              @if (eq.cubierto) {
+                Vas {{ formatSol(eq.brecha) }}/día por encima
+              } @else {
+                Te faltan {{ formatSol(-eq.brecha) }}/día
+              }
+            </p>
+          } @else {
+            <p class="text-lg font-black text-text-main leading-none">—</p>
+            <p class="text-xs text-text-secondary mt-1 leading-snug">
+              Registra tus gastos para saber cuánto vender por día
+            </p>
+          }
+        </div>
+      </div>
+
+      <!-- E7: IGV a apartar -->
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex items-center gap-3">
+        <div class="size-10 rounded-lg bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
+          <span class="material-symbols-outlined text-[20px]">receipt_long</span>
+        </div>
+        <div class="min-w-0">
+          @if (igv(); as i) {
+            <p class="text-lg font-black tabular-nums leading-none" [class]="num(i.porPagar) >= 0 ? 'text-text-main' : 'text-emerald-600'">{{ formatSol(i.porPagar) }}</p>
+            <p class="text-xs text-text-secondary mt-1">
+              @if (num(i.porPagar) >= 0) { IGV estimado por pagar } @else { Crédito fiscal a favor }
+              <span class="material-symbols-outlined text-[13px] align-middle"
+                    title="Referencial: no distingue comprobantes con derecho a crédito fiscal ni incluye notas de crédito. No reemplaza la declaración.">info</span>
+            </p>
+          } @else {
+            <p class="text-lg font-black text-text-main leading-none">—</p>
+            <p class="text-xs text-text-secondary mt-1">IGV del período</p>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Gráfico de ventas (área animada) ─────────────────────────────── -->
+  <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+    <h3 class="text-sm font-bold text-text-main mb-1">Evolución de ventas</h3>
+    <div #chartVentas class="min-h-[280px]"></div>
+  </div>
+
+  <!-- ── Estado de resultados + flujo ─────────────────────────────────── -->
+  @if (pyl(); as p) {
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <!-- P&L -->
+      <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+        <h3 class="text-sm font-bold text-text-main mb-3">Estado de resultados</h3>
+        <div class="flex flex-col gap-2 text-sm">
+          <div class="flex justify-between"><span class="text-text-secondary">Ventas netas (sin IGV)</span><span class="font-bold text-text-main tabular-nums">{{ formatSol(p.ventasNetas) }}</span></div>
+          <div class="flex justify-between"><span class="text-text-secondary">(−) Costo de ventas</span><span class="font-medium text-text-main tabular-nums">{{ formatSol(p.costoVentas) }}</span></div>
+          <div class="flex justify-between border-t border-border-color pt-2"><span class="font-bold text-text-main">(=) Utilidad bruta</span><span class="font-black text-emerald-600 tabular-nums">{{ formatSol(p.utilidadBruta) }}</span></div>
+          <!-- E6: la mercadería vencida o rota es plata perdida, no un detalle
+               de inventario. Antes no aparecía y la utilidad salía inflada. -->
+          <div class="flex justify-between">
+            <span class="text-text-secondary flex items-center gap-1">
+              (−) Mermas
+              <span class="material-symbols-outlined text-[14px] text-text-secondary" title="Vencidos, dañados y robos, valorizados a costo">info</span>
+            </span>
+            <span class="font-medium tabular-nums" [class]="num(p.perdidaMermas) > 0 ? 'text-accent-orange-ink' : 'text-text-main'">{{ formatSol(p.perdidaMermas) }}</span>
+          </div>
+          <div class="flex justify-between"><span class="text-text-secondary">(−) Gastos operativos</span><span class="font-medium text-accent-red-ink tabular-nums">{{ formatSol(p.gastos) }}</span></div>
+          @if (dobleConteo() > 0) {
+            <div class="mt-1 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 leading-snug">
+              <strong>Ojo:</strong> {{ formatSol(dobleConteo()) }} de esos gastos están cargados como
+              "Mercadería". Esa plata ya está contada en el costo de ventas, así que hoy se descuenta
+              <strong>dos veces</strong> y la utilidad neta sale más baja de lo real. Bórralos de la lista
+              de gastos — la compra ya quedó registrada en Compras.
+            </div>
+          }
+          <div class="flex justify-between border-t-2 border-border-color pt-2 mt-1">
+            <span class="font-black text-text-main">(=) Utilidad neta</span>
+            <span class="font-black tabular-nums" [class.text-primary]="num(p.utilidadNeta) >= 0" [class.text-accent-red-ink]="num(p.utilidadNeta) < 0">{{ formatSol(p.utilidadNeta) }}</span>
+          </div>
+        </div>
+
+        <!-- Sin esta nota, el dueño compara "Ventas netas" contra lo cobrado en
+             el POS, ve menos plata y cree que falta dinero. -->
+        <div class="mt-3 pt-3 border-t border-border-color flex items-start gap-2">
+          <span class="material-symbols-outlined text-text-secondary text-[16px] shrink-0 mt-px">info</span>
+          <p class="text-[11px] text-text-secondary leading-relaxed">
+            Las ventas netas <strong>no incluyen el IGV</strong> ni los descuentos, por eso son
+            menores a lo cobrado en caja. Las devoluciones del período ya están descontadas.
+          </p>
+        </div>
+      </div>
+
+      <!-- Flujo de caja -->
+      @if (flujo(); as f) {
+        <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+          <h3 class="text-sm font-bold text-text-main mb-3">Flujo de caja</h3>
+          <div class="flex flex-col gap-2 text-sm">
+            <div class="flex justify-between"><span class="text-text-secondary flex items-center gap-1"><span class="size-2 rounded-full bg-emerald-500"></span>Ingresos (ventas)</span><span class="font-bold text-emerald-600 tabular-nums">{{ formatSol(f.ingresos) }}</span></div>
+            <div class="flex justify-between"><span class="text-text-secondary flex items-center gap-1"><span class="size-2 rounded-full bg-amber-400"></span>Compras a proveedores</span><span class="font-medium text-text-main tabular-nums">{{ formatSol(f.egresosCompras) }}</span></div>
+            <div class="flex justify-between"><span class="text-text-secondary flex items-center gap-1"><span class="size-2 rounded-full bg-red-400"></span>Gastos</span><span class="font-medium text-text-main tabular-nums">{{ formatSol(f.egresosGastos) }}</span></div>
+            <div class="flex justify-between border-t-2 border-border-color pt-2 mt-1">
+              <span class="font-black text-text-main">Saldo del período</span>
+              <span class="font-black tabular-nums" [class.text-primary]="num(f.saldo) >= 0" [class.text-accent-red-ink]="num(f.saldo) < 0">{{ formatSol(f.saldo) }}</span>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Donuts: métodos de pago + categorías ─────────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+      <h3 class="text-sm font-bold text-text-main mb-1">Métodos de pago</h3>
+      <div #chartMetodos class="min-h-[260px]"></div>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+      <h3 class="text-sm font-bold text-text-main mb-1">Ventas por categoría</h3>
+      <div #chartCategorias class="min-h-[260px]"></div>
+    </div>
+  </div>
+
+  <!-- ── Gastos por categoría (donut) + Top productos ─────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color">
+      <h3 class="text-sm font-bold text-text-main mb-1">Gastos por categoría</h3>
+      <div #chartGastos class="min-h-[260px]"></div>
+    </div>
+    <!-- E10: el mismo panel muestra el ranking por facturación o por utilidad.
+         Casi nunca coinciden, y el que manda para decidir compras es el segundo. -->
+    <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+      <div class="px-5 py-3 border-b border-border-color flex items-center justify-between gap-3">
+        <h3 class="text-sm font-bold text-text-main">Top productos</h3>
+        <div class="flex rounded-lg border border-border-color overflow-hidden shrink-0">
+          <button type="button" (click)="setVistaRanking('venta')"
+                  class="px-2.5 py-1 text-[11px] font-bold transition-colors"
+                  [class]="vistaRanking() === 'venta' ? 'bg-primary text-white' : 'bg-surface text-text-secondary hover:bg-background-light'">
+            Por venta
+          </button>
+          <button type="button" (click)="setVistaRanking('utilidad')"
+                  class="px-2.5 py-1 text-[11px] font-bold transition-colors border-l border-border-color"
+                  [class]="vistaRanking() === 'utilidad' ? 'bg-primary text-white' : 'bg-surface text-text-secondary hover:bg-background-light'">
+            Por utilidad
+          </button>
+        </div>
+      </div>
+      <div class="divide-y divide-border-color">
+        @for (t of rankingProductos(); track t.codigo) {
+          <div class="fs-fade-in-up flex items-center gap-3 px-5 py-2.5">
+            <span class="size-6 rounded-md bg-primary/10 text-primary text-[11px] font-black flex items-center justify-center shrink-0">{{ $index + 1 }}</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-text-main truncate">{{ t.nombre }}</p>
+              <p class="text-[11px] text-text-secondary">{{ t.unidades }} unidades{{ margenTexto(t.margenPct) }}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-sm font-black tabular-nums" [class]="vistaRanking() === 'utilidad' ? 'text-emerald-600' : 'text-text-main'">{{ formatSol(t.principal) }}</p>
+              @if (vistaRanking() === 'utilidad' && t.secundario > 0) {
+                <p class="text-[10px] text-text-secondary tabular-nums">de {{ formatSol(t.secundario) }}</p>
+              }
+            </div>
+          </div>
+        } @empty {
+          <div class="flex flex-col items-center justify-center py-10 text-text-secondary">
+            <span class="material-symbols-outlined text-[36px] mb-2 opacity-40">trophy</span>
+            <p class="text-sm font-bold">Sin ventas en el período</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- ── E10 · Rentabilidad por categoría ─────────────────────────────── -->
+  @if (margenCats().length > 0) {
+    <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+      <div class="px-5 py-3 border-b border-border-color">
+        <h3 class="text-sm font-bold text-text-main">Rentabilidad por categoría</h3>
+        <p class="text-[11px] text-text-secondary mt-0.5">Ordenado por utilidad, no por facturación</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-background-light">
+            <tr class="text-[11px] uppercase tracking-wider text-text-secondary">
+              <th class="text-left font-bold px-5 py-2">Categoría</th>
+              <th class="text-right font-bold px-3 py-2">Unidades</th>
+              <th class="text-right font-bold px-3 py-2">Ingreso</th>
+              <th class="text-right font-bold px-3 py-2">Costo</th>
+              <th class="text-right font-bold px-3 py-2">Utilidad</th>
+              <th class="text-right font-bold px-5 py-2">Margen</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color">
+            @for (c of margenCats(); track c.categoria) {
+              <tr class="hover:bg-background-light transition-colors">
+                <td class="px-5 py-2 font-bold text-text-main">{{ c.categoria }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-text-secondary">{{ c.unidades }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-text-main">{{ formatSol(c.ingreso) }}</td>
+                <td class="px-3 py-2 text-right tabular-nums text-text-secondary">{{ formatSol(c.costo) }}</td>
+                <td class="px-3 py-2 text-right tabular-nums font-bold text-emerald-600">{{ formatSol(c.utilidad) }}</td>
+                <td class="px-5 py-2 text-right tabular-nums font-bold"
+                    [class]="num(c.margenPct) >= 25 ? 'text-emerald-600' : num(c.margenPct) >= 10 ? 'text-text-main' : 'text-accent-orange-ink'">
+                  {{ pct(c.margenPct) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- ── E11 · Capital dormido ────────────────────────────────────────── -->
+  @if (capitalDormido().length > 0) {
+    <div class="bg-surface rounded-xl border border-accent-orange/25 shadow-soft overflow-hidden">
+      <div class="px-5 py-3 border-b border-border-color flex items-start gap-2">
+        <span class="material-symbols-outlined text-accent-orange-ink text-[20px] shrink-0">hourglass_top</span>
+        <div>
+          <h3 class="text-sm font-bold text-text-main">Capital dormido</h3>
+          <p class="text-[11px] text-text-secondary mt-0.5">
+            Categorías con más de 60 días de stock al ritmo de venta actual. Es plata parada en el estante.
+          </p>
+        </div>
+      </div>
+      <div class="divide-y divide-border-color">
+        @for (c of capitalDormido(); track c.categoria) {
+          <div class="flex items-center gap-3 px-5 py-2.5">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-text-main truncate">{{ c.categoria }}</p>
+              <p class="text-[11px] text-text-secondary">{{ formatSol(c.valorInventario) }} en stock</p>
+            </div>
+            <span class="text-sm font-black text-accent-orange-ink tabular-nums shrink-0">{{ diasTexto(c.dias) }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Gastos del período ───────────────────────────────────────────── -->
+  <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+    <div class="px-5 py-3 border-b border-border-color flex items-center justify-between">
+      <h3 class="text-sm font-bold text-text-main">Gastos del período</h3>
+      <span class="text-sm font-black text-accent-red-ink tabular-nums">{{ formatSol(totalGastos()) }}</span>
+    </div>
+    <div class="divide-y divide-border-color">
+      @for (g of gastos(); track g.id) {
+        <div class="fs-fade-in-up flex items-center gap-3 px-5 py-3">
+          <div class="size-9 rounded-lg bg-red-50 text-accent-red-ink flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[18px]">receipt_long</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-text-main truncate">{{ g.descripcion }}</p>
+            <p class="text-xs text-text-secondary">{{ labelCategoriaGasto(g.categoria) }} · {{ fechaCorta(g.fecha) }} · {{ autorGasto(g) }}</p>
+          </div>
+          <span class="text-sm font-black text-text-main tabular-nums shrink-0">{{ formatSol(g.monto) }}</span>
+          <button type="button" (click)="editarGasto(g)" title="Corregir"
+                  class="size-8 rounded-lg flex items-center justify-center text-text-secondary/50 hover:bg-background-light hover:text-primary transition-colors shrink-0">
+            <span class="material-symbols-outlined text-[18px]">edit</span>
+          </button>
+          <button type="button" (click)="pedirEliminar(g)" title="Eliminar"
+                  class="size-8 rounded-lg flex items-center justify-center text-text-secondary/50 hover:bg-red-50 hover:text-accent-red-ink transition-colors shrink-0">
+            <span class="material-symbols-outlined text-[18px]">delete</span>
+          </button>
+        </div>
+      } @empty {
+        <div class="flex flex-col items-center justify-center py-10 text-text-secondary">
+          <span class="material-symbols-outlined text-[40px] mb-2 opacity-40">receipt_long</span>
+          <p class="text-sm font-bold">Sin gastos registrados</p>
+          <p class="text-xs">Registra alquiler, sueldos, servicios… para ver la utilidad neta real.</p>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="h-4"></div>
+</div>
+
+
+<!-- ══════════════════════ MODAL REGISTRAR GASTO ═══════════════════════ -->
+@if (mostrarGasto()) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarGasto()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-border-color flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-red-50 text-accent-red-ink flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill">receipt_long</span>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-text-main">{{ gastoEditando() ? 'Corregir gasto' : 'Registrar gasto' }}</h3>
+            <p class="text-xs text-text-secondary">Para calcular la utilidad neta real</p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarGasto()"
+                class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors" aria-label="Cerrar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="px-6 py-5 flex flex-col gap-4">
+        <div>
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Categoría</label>
+          <select [ngModel]="fCategoria()" (ngModelChange)="fCategoria.set($event)"
+                  class="block w-full px-3 h-10 bg-white border border-border-color rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary">
+            @for (c of categoriasGasto; track c) {
+              <option [value]="c">{{ labelCategoriaGasto(c) }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Descripción</label>
+          <input type="text" [ngModel]="fDescripcion()" (ngModelChange)="fDescripcion.set($event)"
+                 placeholder="Ej. Alquiler local junio"
+                 class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Monto (S/)</label>
+            <input type="number" min="0" step="0.01" [ngModel]="fMonto()" (ngModelChange)="fMonto.set($event)"
+                   placeholder="0.00"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Fecha del pago</label>
+            <input type="date" [max]="hoyISO" [ngModel]="fFecha()" (ngModelChange)="fFecha.set($event)"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+        </div>
+        <p class="text-[11px] text-text-secondary -mt-1 flex items-start gap-1">
+          <span class="material-symbols-outlined text-[13px] mt-px">info</span>
+          <span>Pon la fecha en que se pagó de verdad, no la de hoy: el gasto entra en ese período y así el mes cierra bien.</span>
+        </p>
+      </div>
+
+      <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl">
+        <button type="button" (click)="cerrarGasto()"
+                class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">Cancelar</button>
+        <button type="button" (click)="guardarGasto()" [disabled]="guardandoGasto()"
+                class="h-10 px-5 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors disabled:opacity-40 flex items-center gap-2">
+          @if (guardandoGasto()) {
+            <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            Guardando…
+          } @else {
+            <span class="material-symbols-outlined text-[18px]">save</span>
+            {{ gastoEditando() ? 'Guardar cambios' : 'Registrar' }}
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Gastos fijos mensuales ─────────────────────────────────────────── -->
+@if (mostrarFijos()) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarFijos()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-border-color flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill">event_repeat</span>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-text-main">Gastos fijos mensuales</h3>
+            <p class="text-xs text-text-secondary">Alquiler, sueldos, internet… se avisan cada mes</p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarFijos()"
+                class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors" aria-label="Cerrar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="px-6 py-5 flex flex-col gap-5 overflow-y-auto">
+        <!-- Alta / edición -->
+        <div class="border border-border-color rounded-xl p-4 flex flex-col gap-3">
+          <p class="text-xs font-bold text-text-secondary uppercase tracking-wider">
+            {{ fijoEditando() ? 'Editar gasto fijo' : 'Nuevo gasto fijo' }}
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1">Categoría</label>
+              <select [ngModel]="rCategoria()" (ngModelChange)="rCategoria.set($event)"
+                      class="block w-full px-3 h-10 bg-white border border-border-color rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                @for (c of categoriasGasto; track c) {
+                  <option [value]="c">{{ labelCategoriaGasto(c) }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1">Descripción</label>
+              <input type="text" [ngModel]="rDescripcion()" (ngModelChange)="rDescripcion.set($event)"
+                     placeholder="Ej. Alquiler del local"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1">Monto mensual (S/)</label>
+              <input type="number" min="0" step="0.01" [ngModel]="rMonto()" (ngModelChange)="rMonto.set($event)"
+                     placeholder="0.00"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-text-secondary uppercase tracking-wider mb-1">Día de pago</label>
+              <input type="number" min="1" max="28" [ngModel]="rDia()" (ngModelChange)="rDia.set($event)"
+                     class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm tabular-nums focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+              <p class="text-[11px] text-text-secondary mt-1">Hasta 28, para que exista también en febrero.</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            @if (fijoEditando()) {
+              <button type="button" (click)="cancelarFijo()"
+                      class="h-9 px-3 rounded-lg text-sm font-bold text-text-secondary hover:bg-background-light transition-colors">Cancelar</button>
+            }
+            <button type="button" (click)="guardarFijo()" [disabled]="guardandoFijo()"
+                    class="h-9 px-4 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors disabled:opacity-40">
+              {{ fijoEditando() ? 'Guardar' : 'Añadir' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Lista -->
+        <div class="border border-border-color rounded-xl divide-y divide-border-color overflow-hidden">
+          @for (r of recurrentes(); track r.id) {
+            <div class="flex items-center gap-3 px-4 py-3" [class.opacity-50]="!r.activo">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-text-main truncate">
+                  {{ r.descripcion }}
+                  @if (!r.activo) { <span class="text-[11px] font-bold text-text-secondary">· pausado</span> }
+                </p>
+                <p class="text-xs text-text-secondary">{{ labelCategoriaGasto(r.categoria) }} · cada día {{ r.diaDelMes }}</p>
+              </div>
+              <span class="text-sm font-black text-text-main tabular-nums shrink-0">{{ formatSol(r.monto) }}</span>
+              <button type="button" (click)="alternarFijo(r)" [title]="r.activo ? 'Pausar' : 'Reactivar'"
+                      class="size-8 rounded-lg flex items-center justify-center text-text-secondary/60 hover:bg-background-light hover:text-primary transition-colors shrink-0">
+                <span class="material-symbols-outlined text-[18px]">{{ r.activo ? 'pause' : 'play_arrow' }}</span>
+              </button>
+              <button type="button" (click)="editarFijo(r)" title="Editar"
+                      class="size-8 rounded-lg flex items-center justify-center text-text-secondary/60 hover:bg-background-light hover:text-primary transition-colors shrink-0">
+                <span class="material-symbols-outlined text-[18px]">edit</span>
+              </button>
+              <button type="button" (click)="eliminarFijo(r)" title="Eliminar"
+                      class="size-8 rounded-lg flex items-center justify-center text-text-secondary/60 hover:bg-red-50 hover:text-accent-red-ink transition-colors shrink-0">
+                <span class="material-symbols-outlined text-[18px]">delete</span>
+              </button>
+            </div>
+          } @empty {
+            <div class="flex flex-col items-center justify-center py-8 text-text-secondary">
+              <span class="material-symbols-outlined text-[36px] mb-2 opacity-40">event_repeat</span>
+              <p class="text-sm font-bold">Sin gastos fijos</p>
+              <p class="text-xs text-center max-w-xs mt-1">Carga el alquiler y los sueldos una vez. Cada mes el sistema te avisa y tú confirmas — así no se olvidan y la utilidad neta es real.</p>
+            </div>
+          }
+        </div>
+
+        <p class="text-[11px] text-text-secondary flex items-start gap-1">
+          <span class="material-symbols-outlined text-[13px] mt-px">info</span>
+          <span>Los gastos fijos no se registran solos: el sistema avisa y tú confirmas. Borrar una plantilla no borra los meses ya registrados.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Confirmar eliminación de gasto ─────────────────────────────────── -->
+@if (gastoAEliminar(); as g) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cancelarEliminar()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
+        <div class="size-12 rounded-2xl bg-red-50 text-accent-red-ink flex items-center justify-center">
+          <span class="material-symbols-outlined text-[26px]">delete_forever</span>
+        </div>
+        <div>
+          <h3 class="font-black text-lg text-text-main">¿Eliminar este gasto?</h3>
+          <p class="text-sm text-text-main mt-2 font-bold">{{ g.descripcion }}</p>
+          <p class="text-sm text-text-secondary">{{ labelCategoriaGasto(g.categoria) }} · {{ formatSol(g.monto) }} · {{ fechaCorta(g.fecha) }}</p>
+        </div>
+        <p class="text-xs text-text-secondary leading-snug">
+          La utilidad neta del período subirá {{ formatSol(g.monto) }}. No se puede deshacer
+          y no queda registro de quién lo borró.
+        </p>
+      </div>
+      <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-end gap-2 rounded-b-2xl">
+        <button type="button" (click)="cancelarEliminar()"
+                class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">Cancelar</button>
+        <button type="button" (click)="confirmarEliminar()" [disabled]="eliminandoGasto()"
+                class="h-10 px-5 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors disabled:opacity-40 flex items-center gap-2">
+          @if (eliminandoGasto()) {
+            <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            Eliminando…
+          } @else {
+            Sí, eliminar
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

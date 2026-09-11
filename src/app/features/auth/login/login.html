@@ -1,0 +1,179 @@
+<div class="h-dvh overflow-hidden w-full flex bg-background-light">
+  <!-- ============ PANEL IZQUIERDO: BRANDING ============ -->
+  <div class="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-primary via-primary-700 to-primary-900 text-white relative overflow-hidden">
+    <!-- Decoración -->
+    <div class="absolute -top-20 -right-20 size-96 rounded-full bg-white/5 blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-20 -left-20 size-96 rounded-full bg-primary-400/10 blur-3xl pointer-events-none"></div>
+
+    <div class="relative z-10 flex items-center gap-3">
+      <div class="size-12 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
+        <span class="material-symbols-outlined icon-fill text-[28px]">local_pharmacy</span>
+      </div>
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight leading-none">FarmaSys</h1>
+        <p class="text-xs font-medium text-white/70 mt-0.5">Gestión Pro</p>
+      </div>
+    </div>
+
+    <div class="relative z-10">
+      <h2 class="text-4xl xl:text-5xl font-black leading-tight tracking-tight mb-4">
+        Tu botica,<br/>bajo control.
+      </h2>
+      <p class="text-base text-white/80 max-w-md leading-relaxed">
+        Sistema integral de gestión: ventas, inventario, recetas, facturación electrónica y reportes —
+        todo en una sola plataforma.
+      </p>
+      <div class="grid grid-cols-3 gap-4 mt-8 max-w-md">
+        <div class="text-center">
+          <p class="text-3xl font-black">5</p>
+          <p class="text-[10px] uppercase tracking-widest text-white/60 font-bold">Sucursales</p>
+        </div>
+        <div class="text-center border-x border-white/10">
+          <p class="text-3xl font-black">12k+</p>
+          <p class="text-[10px] uppercase tracking-widest text-white/60 font-bold">SKUs</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl font-black">24/7</p>
+          <p class="text-[10px] uppercase tracking-widest text-white/60 font-bold">Disponible</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="relative z-10 text-xs text-white/50 font-medium">© 2026 FarmaSys · Todos los derechos reservados</p>
+  </div>
+
+  <!-- ============ PANEL DERECHO: FORMULARIO ============ -->
+  <div class="w-full lg:w-1/2 h-full overflow-y-auto flex items-center justify-center p-6 lg:p-8">
+    <div class="w-full max-w-md py-4">
+      <!-- Logo solo móvil -->
+      <div class="lg:hidden flex items-center gap-3 mb-8 justify-center">
+        <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+          <span class="material-symbols-outlined icon-fill">local_pharmacy</span>
+        </div>
+        <div>
+          <h1 class="text-primary text-xl font-extrabold leading-none tracking-tight">FarmaSys</h1>
+          <p class="text-text-secondary text-xs font-medium">Gestión Pro</p>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <h2 class="text-3xl font-extrabold text-text-main tracking-tight mb-1.5">Iniciar sesión</h2>
+        <p class="text-sm text-text-secondary">Ingresa tus credenciales para acceder al sistema</p>
+      </div>
+
+      <!-- aria-live: el lector de pantalla anuncia el error sin recargar -->
+      <div aria-live="polite">
+        @if (sesionExpirada()) {
+          <div class="mb-4 p-3 bg-accent-orange/10 border border-accent-orange/20 rounded-lg flex items-start gap-2">
+            <span class="material-symbols-outlined text-accent-orange-ink text-[20px] shrink-0 mt-0.5">schedule</span>
+            <div class="text-xs text-accent-orange-ink font-semibold">
+              Tu sesión expiró. Vuelve a iniciar sesión para continuar.
+            </div>
+          </div>
+        }
+
+        @if (error()) {
+          <div role="alert" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <span class="material-symbols-outlined text-accent-red-ink text-[20px] shrink-0 mt-0.5">error</span>
+            <div class="text-xs text-accent-red-ink font-semibold">{{ error() }}</div>
+          </div>
+        }
+      </div>
+
+      <form (submit)="iniciarSesion($event)" class="space-y-3" novalidate>
+        <div>
+          <label for="email" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+            Correo electrónico
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span class="material-symbols-outlined text-text-secondary text-[20px]">mail</span>
+            </div>
+            <input
+              id="email"
+              type="email"
+              autocomplete="username"
+              required
+              autofocus
+              [disabled]="cargando()"
+              placeholder="tu@farmasys.pe"
+              [ngModel]="email()"
+              (ngModelChange)="email.set($event)"
+              name="email"
+              class="block w-full pl-10 pr-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all disabled:opacity-60"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label for="password" class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+            Contraseña
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span class="material-symbols-outlined text-text-secondary text-[20px]">lock</span>
+            </div>
+            <input
+              id="password"
+              [type]="mostrarPassword() ? 'text' : 'password'"
+              autocomplete="current-password"
+              required
+              [disabled]="cargando()"
+              placeholder="••••••••"
+              [ngModel]="password()"
+              (ngModelChange)="password.set($event)"
+              name="password"
+              class="block w-full pl-10 pr-11 py-2.5 bg-background-light border border-border-color rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all disabled:opacity-60"
+            />
+            <button
+              type="button"
+              (click)="togglePassword()"
+              class="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary hover:text-primary transition-colors"
+              [attr.aria-label]="mostrarPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+            >
+              <span class="material-symbols-outlined text-[20px]">
+                {{ mostrarPassword() ? 'visibility_off' : 'visibility' }}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              [ngModel]="recordarme()"
+              (ngModelChange)="recordarme.set($event)"
+              name="recordarme"
+              class="size-4 rounded border-border-color text-primary focus:ring-primary/20"
+            />
+            <span class="text-xs font-medium text-text-secondary">Recordarme</span>
+          </label>
+          <!-- No hay flujo de auto-recuperación: la clave la resetea el admin.
+               Antes era un botón `disabled` que parecía roto; ahora explica. -->
+          <button
+            type="button"
+            (click)="olvideContrasena()"
+            class="text-xs font-bold text-primary hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
+
+        <button
+          type="submit"
+          [disabled]="cargando()"
+          class="w-full bg-primary hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed text-white h-12 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-md shadow-primary/20 transition-all"
+        >
+          @if (cargando()) {
+            <span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+            <span>Ingresando...</span>
+          } @else {
+            <span>Iniciar sesión</span>
+            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+          }
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,120 @@
+<div class="max-w-[1200px] mx-auto flex flex-col gap-5">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────── -->
+  <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Sugerencia de reposición</h2>
+      <p class="text-text-secondary text-sm mt-1">Qué comprar y cuánto, según la demanda de los últimos {{ dias() }} días</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="flex bg-background-light rounded-lg p-0.5 border border-border-color">
+        @for (d of [15, 30, 60, 90]; track d) {
+          <button type="button" (click)="setDias(d)"
+                  class="px-3 py-1.5 rounded-md text-xs font-bold transition-colors"
+                  [class.bg-surface]="dias() === d" [class.text-primary]="dias() === d"
+                  [class.shadow-sm]="dias() === d" [class.text-text-secondary]="dias() !== d">
+            {{ d }}d
+          </button>
+        }
+      </div>
+      <button type="button" (click)="irAComprar()"
+              class="h-9 px-4 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors active:scale-95 shadow-sm shadow-primary/20">
+        <span class="material-symbols-outlined text-[18px]">shopping_cart</span>Ir a comprar
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Resumen ───────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-surface rounded-xl p-4 shadow-soft border border-border-color flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[20px]">inventory</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main tabular-nums leading-none">{{ totalItems() }}</p>
+        <p class="text-xs text-text-secondary mt-0.5">productos por reponer</p>
+      </div>
+    </div>
+    <div class="bg-surface rounded-xl p-4 shadow-soft border border-red-100 flex items-center gap-3">
+      <div class="size-10 rounded-lg bg-red-50 text-accent-red-ink flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-[20px]">priority_high</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-accent-red-ink tabular-nums leading-none">{{ criticos() }}</p>
+        <p class="text-xs text-text-secondary mt-0.5">críticos (≤ 7 días de stock)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Búsqueda ──────────────────────────────────────────────────── -->
+  <div class="relative max-w-sm">
+    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+      <span class="material-symbols-outlined text-text-secondary text-[20px]">search</span>
+    </div>
+    <input type="text" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+           placeholder="Buscar producto…"
+           class="block w-full pl-10 pr-3 h-10 border border-border-color bg-surface rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+  </div>
+
+  <!-- ── Tabla ─────────────────────────────────────────────────────── -->
+  <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color">
+          <tr>
+            <th class="px-5 py-3">Producto</th>
+            <th class="px-5 py-3 text-right">Stock actual</th>
+            <th class="px-5 py-3 text-right">Vendido ({{ dias() }}d)</th>
+            <th class="px-5 py-3 text-right">Venta/día</th>
+            <th class="px-5 py-3 text-right">Cobertura</th>
+            <th class="px-5 py-3 text-right">Sugerido pedir</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border-color text-sm">
+          @if (cargando()) {
+            @for (s of [1,2,3,4,5,6]; track s) {
+              <tr>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-40 rounded"></div></td>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-12 rounded ml-auto"></div></td>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-12 rounded ml-auto"></div></td>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-10 rounded ml-auto"></div></td>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-16 rounded ml-auto"></div></td>
+                <td class="px-5 py-3"><div class="fs-skeleton h-4 w-14 rounded ml-auto"></div></td>
+              </tr>
+            }
+          } @else {
+            @for (f of filtradas(); track f.producto?.codigo) {
+              <tr class="fs-fade-in-up hover:bg-gray-50 transition-colors">
+                <td class="px-5 py-3">
+                  <p class="font-bold text-text-main leading-tight">{{ f.producto?.nombre }}</p>
+                  <p class="text-[11px] text-text-secondary font-mono">{{ f.producto?.codigo }}</p>
+                </td>
+                <td class="px-5 py-3 text-right tabular-nums">{{ f.stockActual }} {{ unidad(f) }}</td>
+                <td class="px-5 py-3 text-right tabular-nums text-text-secondary">{{ f.vendidoPeriodo }}</td>
+                <td class="px-5 py-3 text-right tabular-nums text-text-secondary">{{ f.velocidadDia }}</td>
+                <td class="px-5 py-3 text-right tabular-nums" [class]="claseCobertura(f)">{{ coberturaTexto(f) }}</td>
+                <td class="px-5 py-3 text-right">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-black tabular-nums">
+                    +{{ f.sugerido }} {{ unidad(f) }}
+                  </span>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="px-5 py-16 text-center">
+                  <div class="flex flex-col items-center gap-3 text-text-secondary">
+                    <span class="material-symbols-outlined text-[48px] text-emerald-300">check_circle</span>
+                    <p class="font-bold">Todo bajo control</p>
+                    <p class="text-xs">Ningún producto necesita reposición en esta ventana.</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="h-4"></div>
+</div>

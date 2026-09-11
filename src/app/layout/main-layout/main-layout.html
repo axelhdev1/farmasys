@@ -1,0 +1,20 @@
+<!-- Notificaciones globales — renderiza los toasts sobre todo el layout -->
+<app-toast></app-toast>
+
+<div class="bg-canvas dark:bg-background-dark text-text-main font-display antialiased overflow-hidden h-dvh flex">
+
+  <app-sidebar></app-sidebar>
+
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <app-header></app-header>
+
+    <!-- min-h-0 es crítico para que flex-1 no desborde en navegadores Webkit -->
+    <div class="flex-1 overflow-hidden flex flex-col min-h-0">
+      <main class="flex-1 overflow-y-auto p-4 lg:p-6 bg-canvas min-h-0">
+        <router-outlet></router-outlet>
+      </main>
+    </div>
+
+  </div>
+</div>

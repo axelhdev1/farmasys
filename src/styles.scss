@@ -1,0 +1,124 @@
+/* ── Tailwind ────────────────────────────────────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Reset de layout raíz ───────────────────────────────────────────── */
+/*
+ * Fuerza que html/body y el root de Angular ocupen exactamente el viewport
+ * sin scroll lateral. Todo el overflow se maneja dentro de los componentes
+ * con overflow-hidden / overflow-y-auto según corresponda.
+ *
+ * Esto es crítico en zoom alto (125%+): sin este reset el navegador puede
+ * generar un scroll lateral que desplaza el sidebar hacia la izquierda,
+ * cortando los textos de las secciones del menú.
+ */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Tipografía base ────────────────────────────────────────────────────
+ * La fuente se fija aquí y no solo con la clase `font-display` del layout:
+ * así también la heredan el login, los modales que se montan fuera del
+ * layout y cualquier `<dialog>` o iframe de impresión.
+ *
+ * `cv05` y `cv08` son variantes de carácter de Inter que abren la l y la u
+ * minúsculas: a 11-12px, que es donde vive la mitad de este sistema, evitan
+ * que "l" e "I" se confundan. `tnum` deja los dígitos de ancho fijo para que
+ * las columnas de soles no bailen al actualizarse.
+ */
+html {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "cv05" 1, "cv08" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * app-root es solo un wrapper de Angular. display:contents lo hace
+ * transparente para el layout, como si no existiera en el DOM.
+ */
+app-root {
+  display: contents;
+}
+
+/* ── Sistema de animaciones (pulido UX) ─────────────────────────────────
+ * Keyframes + utilidades reutilizables en toda la app. Pensadas para ser
+ * sutiles y rápidas (180–320ms). Respetan prefers-reduced-motion.
+ */
+
+@keyframes fs-toast-in {
+  from { opacity: 0; transform: translateX(16px) scale(.98); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes fs-fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fs-pop {
+  0%   { transform: scale(.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes fs-bump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fs-shimmer {
+  0%   { background-position: -480px 0; }
+  100% { background-position: 480px 0; }
+}
+
+/* Entrada animada genérica */
+.fs-toast-in   { animation: fs-toast-in .28s cubic-bezier(.21,1.02,.73,1) both; }
+.fs-fade-in-up { animation: fs-fade-in-up .26s ease-out both; }
+.fs-pop        { animation: fs-pop .32s cubic-bezier(.21,1.02,.73,1) both; }
+.fs-bump       { animation: fs-bump .32s ease-out; }
+
+/* Esqueleto de carga: barrido de luz sobre un gris neutro */
+.fs-skeleton {
+  background: linear-gradient(
+    100deg,
+    rgba(148, 163, 184, .12) 30%,
+    rgba(148, 163, 184, .24) 50%,
+    rgba(148, 163, 184, .12) 70%
+  );
+  background-size: 480px 100%;
+  animation: fs-shimmer 1.2s ease-in-out infinite;
+}
+
+/* Cascada para listas: cada hijo entra con un pequeño retraso */
+.fs-stagger > * {
+  animation: fs-fade-in-up .26s ease-out both;
+}
+.fs-stagger > *:nth-child(1) { animation-delay: .02s; }
+.fs-stagger > *:nth-child(2) { animation-delay: .05s; }
+.fs-stagger > *:nth-child(3) { animation-delay: .08s; }
+.fs-stagger > *:nth-child(4) { animation-delay: .11s; }
+.fs-stagger > *:nth-child(5) { animation-delay: .14s; }
+.fs-stagger > *:nth-child(6) { animation-delay: .17s; }
+.fs-stagger > *:nth-child(7) { animation-delay: .20s; }
+.fs-stagger > *:nth-child(8) { animation-delay: .23s; }
+
+/* Accesibilidad: si el usuario pide menos movimiento, lo desactivamos todo */
+@media (prefers-reduced-motion: reduce) {
+  .fs-toast-in,
+  .fs-fade-in-up,
+  .fs-pop,
+  .fs-bump,
+  .fs-skeleton,
+  .fs-stagger > * {
+    animation: none !important;
+  }
+}

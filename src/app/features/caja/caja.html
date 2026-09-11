@@ -1,0 +1,415 @@
+<div class="max-w-5xl mx-auto flex flex-col gap-5 pb-8">
+
+  <!-- ── Encabezado ─────────────────────────────────────────────────── -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-black text-text-main tracking-tight">Caja</h1>
+      <p class="text-sm text-text-secondary mt-0.5">
+        {{ cajeroNombre() }} · {{ sucursalNombre() }}@if (caja(); as c) { · {{ c.terminal }} }
+      </p>
+    </div>
+    @if (caja()) {
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-bold">
+        <span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Caja abierta
+      </span>
+    } @else {
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-text-secondary text-sm font-bold">
+        <span class="size-2 rounded-full bg-slate-400"></span>
+        Caja cerrada
+      </span>
+    }
+  </div>
+
+  <!-- ══ SIN CAJA → APERTURA ══════════════════════════════════════════ -->
+  @if (!caja()) {
+    <div class="bg-surface rounded-xl border border-border-color p-6 max-w-md mx-auto w-full">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="size-11 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+          <span class="material-symbols-outlined text-[24px]" aria-hidden="true">point_of_sale</span>
+        </div>
+        <div>
+          <h2 class="font-black text-text-main">Abrir caja</h2>
+          <p class="text-xs text-text-secondary">Ingresa el monto inicial (sencillo) para empezar a vender</p>
+        </div>
+      </div>
+
+      <!-- Bloqueo: tengo una caja abierta en OTRA botica -->
+      @if (cajaEnOtraSucursal(); as otra) {
+        <div class="p-3 mb-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div class="flex items-start gap-2">
+            <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0" aria-hidden="true">lock_clock</span>
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-amber-900">Tienes una caja abierta en {{ otra.sucursalNombre }}</p>
+              <p class="text-[11px] text-amber-800 mt-0.5">
+                {{ otra.terminal }} · abierta desde {{ otra.aperturaEn | date:'dd/MM/yy HH:mm' }}
+                @if (otra.diasAbierta >= 1) { ({{ otra.diasAbierta }} {{ otra.diasAbierta === 1 ? 'día' : 'días' }}) }
+              </p>
+              <p class="text-[11px] text-amber-800 mt-1">
+                Solo puedes tener una caja abierta a la vez. Ciérrala para poder abrir aquí.
+              </p>
+            </div>
+          </div>
+          <button type="button" (click)="cerrarCajaDeOtraSucursal()"
+            class="mt-2 w-full h-9 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors">
+            Cerrar esa caja (arqueo)
+          </button>
+        </div>
+      }
+
+      <!-- Terminal (cajón físico): catalogado, no texto libre -->
+      <label for="terminal" class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">
+        Terminal
+      </label>
+      @if (cargandoTerminales()) {
+        <div class="fs-skeleton h-11 w-full rounded-lg mb-1"></div>
+      } @else if (terminales().length === 0) {
+        <div class="p-3 mb-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+          Esta botica no tiene terminales configurados. Pide a un administrador que registre al menos uno (CAJA-01).
+        </div>
+      } @else {
+        <select id="terminal"
+          [ngModel]="terminalSel()" (ngModelChange)="terminalSel.set($event)"
+          class="w-full h-11 px-3 mb-1 border border-border-color rounded-lg text-sm font-semibold bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary/40">
+          @for (t of terminales(); track t.id) {
+            <option [value]="t.nombre" [disabled]="t.ocupado">
+              {{ t.nombre }}{{ etiquetaTerminal(t) }}
+            </option>
+          }
+        </select>
+
+        <!-- Terminal ocupado hace días = caja que nadie cerró -->
+        @if (terminalHuerfano(); as h) {
+          <div class="flex items-start gap-2 p-2.5 mb-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <span class="material-symbols-outlined text-amber-600 text-[18px] shrink-0" aria-hidden="true">warning</span>
+            <p class="text-[11px] text-amber-800 leading-snug">
+              <b>{{ h.nombre }}</b> está ocupado desde hace {{ h.diasOcupado }}
+              {{ h.diasOcupado === 1 ? 'día' : 'días' }} por {{ h.ocupadoPor }}.
+              Probablemente sea una caja que quedó sin cerrar: pide a un administrador que la cierre.
+            </p>
+          </div>
+        }
+
+        <!-- Relevo de turno: fondo sugerido del último cierre de ESTE terminal -->
+        @if (terminalActual()?.ultimoCierre; as uc) {
+          @if (uc.efectivoContado) {
+            <div class="flex items-center justify-between gap-2 p-2.5 mb-3 bg-primary-50 border border-primary-100 rounded-lg">
+              <p class="text-[11px] text-text-secondary leading-snug">
+                Último cierre de este terminal:
+                <span class="font-bold text-text-main tabular-nums">S/ {{ uc.efectivoContado | number:'1.2-2' }}</span>
+                <span class="text-text-secondary"> ({{ uc.cajeroAnterior }}, {{ uc.cerradaEn | date:'HH:mm' }})</span>
+              </p>
+              <button type="button" (click)="usarFondoSugerido()"
+                class="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition-colors">
+                Usar como fondo
+              </button>
+            </div>
+          }
+        }
+      }
+
+      <label for="montoInicial" class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">
+        Monto inicial (efectivo)
+      </label>
+      <div class="flex gap-2">
+        <div class="relative flex-1">
+          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-text-secondary text-sm font-bold pointer-events-none">S/</span>
+          <input id="montoInicial" type="number" min="0" step="0.50"
+            [ngModel]="montoInicial()" (ngModelChange)="montoInicial.set($event)"
+            (keydown.enter)="abrirCaja()"
+            placeholder="0.00"
+            class="w-full h-11 pl-10 pr-3 border border-border-color rounded-lg text-base font-bold text-right tabular-nums focus:ring-2 focus:ring-primary/20 focus:border-primary/40" />
+        </div>
+        <button type="button" (click)="abrirCaja()"
+          [disabled]="!terminalSel()"
+          class="px-5 h-11 rounded-lg bg-primary hover:bg-primary-700 text-white font-bold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed">
+          Abrir caja
+        </button>
+      </div>
+
+      <!-- Montos rápidos: los fondos de sencillo habituales -->
+      <div class="flex items-center gap-1.5 mt-2">
+        <span class="text-[11px] text-text-secondary">Rápido:</span>
+        @for (m of montosRapidos; track m) {
+          <button type="button" (click)="montoInicial.set(m)"
+            class="px-2.5 py-1 rounded-md border border-border-color text-[11px] font-bold text-text-secondary hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors tabular-nums">
+            S/ {{ m }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ══ CON CAJA → PANEL EN VIVO ═════════════════════════════════════ -->
+  @if (caja(); as c) {
+    @if (totales(); as t) {
+
+      <!-- Resumen por método -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-surface rounded-xl border border-border-color p-4">
+          <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">Efectivo esperado</p>
+          <p class="text-2xl font-black text-text-main tabular-nums leading-none">S/ {{ t.efectivoEsperado | number:'1.2-2' }}</p>
+          <p class="text-[11px] text-text-secondary mt-1.5">Fondo S/ {{ c.montoInicial | number:'1.2-2' }} + ventas − egresos</p>
+        </div>
+        <div class="bg-surface rounded-xl border border-border-color p-4">
+          <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">Yape / Plin</p>
+          <p class="text-2xl font-black text-text-main tabular-nums leading-none">S/ {{ t.totalYapePlin | number:'1.2-2' }}</p>
+          <p class="text-[11px] text-text-secondary mt-1.5">Control (no efectivo)</p>
+        </div>
+        <div class="bg-surface rounded-xl border border-border-color p-4">
+          <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">Tarjeta</p>
+          <p class="text-2xl font-black text-text-main tabular-nums leading-none">S/ {{ t.totalTarjeta | number:'1.2-2' }}</p>
+          <p class="text-[11px] text-text-secondary mt-1.5">Control (no efectivo)</p>
+        </div>
+        <div class="bg-surface rounded-xl border border-border-color p-4">
+          <p class="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">Vendido hoy</p>
+          <p class="text-2xl font-black text-text-main tabular-nums leading-none">S/ {{ t.totalVentas | number:'1.2-2' }}</p>
+          <p class="text-[11px] text-text-secondary mt-1.5">{{ t.cantidadTickets }} tickets · abre {{ c.aperturaEn | date:'HH:mm' }}</p>
+        </div>
+      </div>
+
+      <!-- Acciones -->
+      <div class="flex flex-wrap gap-2">
+        <button type="button" (click)="abrirModalMovimiento('INGRESO')"
+          class="flex items-center gap-1.5 bg-background-light hover:bg-slate-100 text-text-main font-semibold text-sm px-4 py-2 rounded-lg border border-border-color transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">add_circle</span>
+          Ingreso
+        </button>
+        <button type="button" (click)="abrirModalMovimiento('EGRESO')"
+          class="flex items-center gap-1.5 bg-background-light hover:bg-slate-100 text-text-main font-semibold text-sm px-4 py-2 rounded-lg border border-border-color transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">remove_circle</span>
+          Egreso / gasto
+        </button>
+        <button type="button" (click)="irAPOS()"
+          class="flex items-center gap-1.5 bg-primary hover:bg-primary-700 text-white font-bold text-sm px-4 py-2 rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">point_of_sale</span>
+          Ir al POS
+        </button>
+        <button type="button" (click)="imprimirZ(c.id)"
+          class="flex items-center gap-1.5 ml-auto bg-white hover:bg-gray-50 text-text-main border border-border-color font-bold text-sm px-4 py-2 rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">receipt_long</span>
+          Vista previa Z
+        </button>
+        <button type="button" (click)="abrirModalCierre()"
+          class="flex items-center gap-1.5 bg-accent-red/10 hover:bg-accent-red/20 text-accent-red-ink font-bold text-sm px-4 py-2 rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">lock</span>
+          Cerrar caja
+        </button>
+      </div>
+
+      <!-- Movimientos del turno -->
+      <div class="bg-surface rounded-xl border border-border-color overflow-hidden">
+        <div class="px-4 py-3 border-b border-border-color flex items-center justify-between">
+          <h3 class="text-sm font-black text-text-main">Movimientos del turno</h3>
+          <span class="text-xs text-text-secondary">
+            Ingresos S/ {{ t.totalIngresos | number:'1.2-2' }} · Egresos S/ {{ t.totalEgresos | number:'1.2-2' }}
+          </span>
+        </div>
+        <div class="divide-y divide-gray-50 max-h-[280px] overflow-y-auto">
+          @for (m of c.movimientos; track m.id) {
+            <div class="flex items-center gap-3 px-4 py-2.5">
+              <div class="size-8 rounded-lg flex items-center justify-center shrink-0"
+                   [class.bg-emerald-50]="m.tipo === 'INGRESO'" [class.text-emerald-600]="m.tipo === 'INGRESO'"
+                   [class.bg-red-50]="m.tipo === 'EGRESO'" [class.text-accent-red-ink]="m.tipo === 'EGRESO'">
+                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">{{ m.tipo === 'INGRESO' ? 'south_west' : 'north_east' }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-text-main truncate">{{ labelCategoria(m.categoria) }}</p>
+                <p class="text-[10px] text-text-secondary truncate">{{ m.motivo }} · {{ m.fecha | date:'HH:mm' }}</p>
+              </div>
+              <p class="text-sm font-black tabular-nums shrink-0"
+                 [class.text-emerald-600]="m.tipo === 'INGRESO'" [class.text-accent-red-ink]="m.tipo === 'EGRESO'">
+                {{ m.tipo === 'INGRESO' ? '+' : '−' }} S/ {{ m.monto | number:'1.2-2' }}
+              </p>
+            </div>
+          } @empty {
+            <div class="px-4 py-8 text-center text-text-secondary/60 text-xs font-semibold">
+              Sin movimientos de efectivo en este turno
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ══ HISTÓRICO DE CIERRES ═════════════════════════════════════════ -->
+  @if (historial().length) {
+    <div class="bg-surface rounded-xl border border-border-color overflow-hidden">
+      <div class="px-4 py-3 border-b border-border-color">
+        <h3 class="text-sm font-black text-text-main">Cierres recientes</h3>
+      </div>
+      <div class="divide-y divide-gray-50">
+        @for (s of historial(); track s.id) {
+          <div class="flex items-center gap-3 px-4 py-2.5">
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-bold text-text-main truncate">{{ s.cajeroNombre }} · {{ s.terminal }}</p>
+              <p class="text-[10px] text-text-secondary">
+                <!-- Formato peruano EXPLÍCITO: día/mes/año y hora de 24 h.
+                     Antes usaba `date:'short'`, que sigue el idioma del sistema:
+                     salía "8/10/26" (formato de EE. UU.) para un cierre del 10 de
+                     agosto, y en Perú eso se lee 8 de octubre.
+                     Y la fecha COMPLETA también en el cierre: una caja abierta el
+                     25 y cerrada días después se leía "4:39 PM → 1:29 PM", como
+                     si hubiera cerrado antes de abrir. -->
+                {{ s.aperturaEn | date:'dd/MM/yy HH:mm' }} →
+                {{ s.cierre?.cerradaEn | date:'dd/MM/yy HH:mm' }} ·
+                {{ s.cierre?.cantidadTickets }} tickets
+              </p>
+              @if (s.cierre?.cerradaPorAdmin) {
+                <p class="text-[10px] font-bold text-accent-orange-ink flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[12px]">gavel</span>
+                  Cerrada por {{ s.cierre?.cerradaPorNombre }}
+                </p>
+              }
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-xs font-bold text-text-main tabular-nums">S/ {{ s.cierre?.totalVentas | number:'1.2-2' }}</p>
+              <p class="text-[10px] font-bold tabular-nums"
+                 [class.text-emerald-600]="(s.cierre?.diferencia ?? 0) === 0"
+                 [class.text-accent-red-ink]="(s.cierre?.diferencia ?? 0) < 0"
+                 [class.text-accent-orange-ink]="(s.cierre?.diferencia ?? 0) > 0">
+                @if ((s.cierre?.diferencia ?? 0) === 0) { Cuadrado }
+                @else if ((s.cierre?.diferencia ?? 0) < 0) { Faltante S/ {{ -(s.cierre!.diferencia) | number:'1.2-2' }} }
+                @else { Sobrante S/ {{ s.cierre?.diferencia | number:'1.2-2' }} }
+              </p>
+            </div>
+            <button type="button" (click)="imprimirZ(s.id)" title="Imprimir Z"
+              class="shrink-0 size-8 flex items-center justify-center rounded-lg hover:bg-primary-50 text-text-secondary hover:text-primary transition-colors">
+              <span class="material-symbols-outlined text-[18px]">print</span>
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<!-- ══════════════════════ MODAL MOVIMIENTO ════════════════════════════ -->
+@if (mostrarMovimiento()) {
+  <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+       (click)="cancelarMovimiento()" role="dialog" aria-modal="true" aria-labelledby="movDlgTitle">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6" (click)="$event.stopPropagation()">
+      <h3 id="movDlgTitle" class="font-black text-text-main mb-4">
+        {{ movTipo() === 'INGRESO' ? 'Registrar ingreso' : 'Registrar egreso / gasto' }}
+      </h3>
+
+      <label class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">Categoría</label>
+      <select [ngModel]="movCategoria()" (ngModelChange)="movCategoria.set($event)"
+        class="w-full h-10 px-3 mb-3 border border-border-color rounded-lg text-sm font-semibold bg-white focus:ring-2 focus:ring-primary/20">
+        @for (cat of categoriasFiltradas(); track cat.valor) {
+          <option [ngValue]="cat.valor">{{ cat.label }}</option>
+        }
+      </select>
+
+      <label class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">Monto</label>
+      <div class="relative mb-3">
+        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-text-secondary text-sm font-bold pointer-events-none">S/</span>
+        <input type="number" min="0" step="0.50"
+          [ngModel]="movMonto()" (ngModelChange)="movMonto.set($event)"
+          placeholder="0.00"
+          class="w-full h-10 pl-10 pr-3 border border-border-color rounded-lg text-sm font-bold text-right tabular-nums focus:ring-2 focus:ring-primary/20" />
+      </div>
+
+      <label class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">Motivo (obligatorio)</label>
+      <input type="text" [ngModel]="movMotivo()" (ngModelChange)="movMotivo.set($event)"
+        (keydown.enter)="registrarMovimiento()"
+        placeholder="Ej. pago delivery, retiro a bóveda…"
+        class="w-full h-10 px-3 mb-4 border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20" />
+
+      <div class="flex gap-2">
+        <button type="button" (click)="cancelarMovimiento()"
+          class="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-text-secondary border border-border-color hover:bg-gray-50 transition-colors">
+          Cancelar
+        </button>
+        <button type="button" (click)="registrarMovimiento()"
+          class="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors">
+          Registrar
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════ MODAL CIERRE (ARQUEO) ═══════════════════════ -->
+@if (mostrarCierre()) {
+  @if (totales(); as t) {
+    <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+         (click)="cancelarCierre()" role="dialog" aria-modal="true" aria-labelledby="cierreDlgTitle">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[88vh] overflow-y-auto" (click)="$event.stopPropagation()">
+        <h3 id="cierreDlgTitle" class="font-black text-text-main mb-1">Cierre de caja (arqueo)</h3>
+        <p class="text-xs text-text-secondary mb-4">Resumen del turno. Cuenta el efectivo físico para cuadrar la caja.</p>
+
+        <!-- Datos del turno -->
+        <div class="grid grid-cols-2 gap-2 mb-4 text-xs">
+          <div class="rounded-lg border border-border-color px-3 py-2">
+            <p class="text-text-secondary">Cajero</p>
+            <p class="font-bold text-text-main truncate">{{ caja()?.cajeroNombre }}</p>
+          </div>
+          <div class="rounded-lg border border-border-color px-3 py-2">
+            <p class="text-text-secondary">Turno</p>
+            <p class="font-bold text-text-main">{{ caja()?.aperturaEn | date:'HH:mm' }} → ahora</p>
+          </div>
+        </div>
+
+        <!-- Ventas del turno por método -->
+        <p class="text-[11px] font-black text-text-secondary uppercase tracking-wide mb-1.5">Ventas del turno</p>
+        <div class="rounded-lg border border-border-color divide-y divide-gray-50 mb-4 text-sm">
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Efectivo</span><span class="font-bold tabular-nums">S/ {{ t.totalEfectivo | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Yape / Plin</span><span class="font-bold tabular-nums">S/ {{ t.totalYapePlin | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Tarjeta</span><span class="font-bold tabular-nums">S/ {{ t.totalTarjeta | number:'1.2-2' }}</span></div>
+          @if (t.totalOtros > 0) {
+            <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Otros (transf./mixto)</span><span class="font-bold tabular-nums">S/ {{ t.totalOtros | number:'1.2-2' }}</span></div>
+          }
+          <div class="flex justify-between px-3 py-2 bg-background-light">
+            <span class="font-black">Total vendido · {{ t.cantidadTickets }} tickets</span>
+            <span class="font-black tabular-nums">S/ {{ t.totalVentas | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <!-- Arqueo de efectivo -->
+        <p class="text-[11px] font-black text-text-secondary uppercase tracking-wide mb-1.5">Arqueo de efectivo</p>
+        <div class="rounded-lg border border-border-color divide-y divide-gray-50 mb-4 text-sm">
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Fondo inicial</span><span class="font-bold tabular-nums">S/ {{ montoInicialCierre() | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Ventas en efectivo</span><span class="font-bold tabular-nums">+ S/ {{ t.totalEfectivo | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Ingresos</span><span class="font-bold tabular-nums text-emerald-600">+ S/ {{ t.totalIngresos | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2"><span class="text-text-secondary">Egresos</span><span class="font-bold tabular-nums text-accent-red-ink">− S/ {{ t.totalEgresos | number:'1.2-2' }}</span></div>
+          <div class="flex justify-between px-3 py-2 bg-background-light"><span class="font-black">Efectivo esperado</span><span class="font-black tabular-nums">S/ {{ t.efectivoEsperado | number:'1.2-2' }}</span></div>
+        </div>
+
+        <label for="contado" class="block text-xs font-bold text-text-secondary uppercase tracking-wide mb-1.5">Efectivo contado</label>
+        <div class="relative mb-3">
+          <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-text-secondary text-sm font-bold pointer-events-none">S/</span>
+          <input id="contado" type="number" min="0" step="0.50"
+            [ngModel]="efectivoContado()" (ngModelChange)="efectivoContado.set($event)"
+            placeholder="0.00"
+            class="w-full h-11 pl-10 pr-3 border border-border-color rounded-lg text-base font-bold text-right tabular-nums focus:ring-2 focus:ring-primary/20" />
+        </div>
+
+        @if (diferenciaPrevia() !== null) {
+          <div class="rounded-lg px-3 py-2.5 mb-4 flex items-center justify-between text-sm font-black"
+               [class.bg-emerald-50]="diferenciaPrevia() === 0" [class.text-emerald-700]="diferenciaPrevia() === 0"
+               [class.bg-red-50]="diferenciaPrevia()! < 0" [class.text-accent-red-ink]="diferenciaPrevia()! < 0"
+               [class.bg-orange-50]="diferenciaPrevia()! > 0" [class.text-accent-orange-ink]="diferenciaPrevia()! > 0">
+            <span>
+              @if (diferenciaPrevia() === 0) { Caja cuadrada }
+              @else if (diferenciaPrevia()! < 0) { Faltante }
+              @else { Sobrante }
+            </span>
+            <span class="tabular-nums">S/ {{ (diferenciaPrevia()! < 0 ? -diferenciaPrevia()! : diferenciaPrevia()) | number:'1.2-2' }}</span>
+          </div>
+        }
+
+        <div class="flex gap-2">
+          <button type="button" (click)="cancelarCierre()"
+            class="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-text-secondary border border-border-color hover:bg-gray-50 transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmarCierre()"
+            class="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors">
+            Cerrar caja
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}

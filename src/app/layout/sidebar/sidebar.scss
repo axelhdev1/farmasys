@@ -1,0 +1,14 @@
+/**
+ * :host { display: contents }
+ *
+ * El elemento <app-sidebar> es un wrapper de Angular que se inserta entre
+ * el flex container del main-layout y el <aside> real.
+ * Sin esta regla, el flex algorithm ve <app-sidebar> (sin width/shrink propios)
+ * como un flex item genérico y puede comprimirlo o desplazarlo.
+ *
+ * Con display:contents el wrapper desaparece del layout y el <aside> —que sí
+ * tiene w-56, xl:w-64 y shrink-0— pasa a ser flex item directo del contenedor.
+ */
+:host {
+  display: contents;
+}

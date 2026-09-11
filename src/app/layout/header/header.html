@@ -1,0 +1,158 @@
+<header class="h-16 bg-surface border-b border-border-color px-4 lg:px-6 flex items-center justify-between shrink-0 sticky top-0 z-10">
+
+  <!-- Estado de caja: siempre visible para el cajero (sin entrar al módulo) -->
+  <div class="flex-1">
+    @if (cajaAbierta(); as c) {
+      <button type="button" (click)="irACaja()"
+              class="inline-flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+              title="Caja abierta — ir al módulo de Caja">
+        <span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-xs font-bold">Caja abierta</span>
+        @if (efectivoEsperadoTexto()) {
+          <span class="text-xs font-black tabular-nums">· {{ efectivoEsperadoTexto() }}</span>
+        }
+        <span class="hidden lg:inline text-[11px] text-emerald-600 font-semibold">{{ c.terminal }}</span>
+      </button>
+    } @else {
+      <button type="button" (click)="irACaja()"
+              class="inline-flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg bg-slate-100 text-text-secondary hover:bg-slate-200 transition-colors"
+              title="Sin caja abierta — abrir turno">
+        <span class="size-2 rounded-full bg-slate-400"></span>
+        <span class="text-xs font-bold">Caja cerrada</span>
+      </button>
+    }
+  </div>
+
+  <!-- ── Acciones ────────────────────────────────────────────────────── -->
+  <div class="flex items-center gap-3 ml-4">
+
+    <!-- ── Selector de sucursal ─────────────────────────────────────── -->
+    <div class="hidden md:block relative">
+      <div class="flex flex-col items-end mr-1">
+        <span class="text-[9px] text-text-secondary uppercase font-bold tracking-wider">
+          {{ esSuperAdmin() ? 'Sucursal activa' : 'Mi sucursal' }}
+        </span>
+        <button
+          type="button"
+          (click)="esSuperAdmin() && toggleDropdown()"
+          [class]="esSuperAdmin()
+            ? 'flex items-center gap-1 text-sm font-bold text-text-main hover:text-primary transition-colors cursor-pointer'
+            : 'flex items-center gap-1 text-sm font-bold text-text-main cursor-default'"
+          title="{{ esSuperAdmin() ? 'Cambiar sucursal' : '' }}">
+          @if (sucursalSvc.modoGlobal()) {
+            <span class="text-primary">Vista Global</span>
+          } @else {
+            {{ sucursalSvc.sucursalActiva()?.nombre ?? 'Sucursal' }}
+          }
+          @if (esSuperAdmin()) {
+            <span class="material-symbols-outlined text-[16px]">expand_more</span>
+          }
+        </button>
+      </div>
+
+      <!-- Dropdown de sucursales (solo SUPER_ADMIN) -->
+      @if (dropdownAbierto() && esSuperAdmin()) {
+        <!-- Backdrop -->
+        <div class="fixed inset-0 z-40" (click)="dropdownAbierto.set(false)"></div>
+
+        <!-- Panel -->
+        <div class="absolute right-0 top-full mt-2 w-72 bg-surface rounded-2xl shadow-xl border border-border-color z-50 overflow-hidden">
+
+          <!-- Vista global -->
+          <button type="button"
+                  (click)="seleccionarGlobal()"
+                  [class]="sucursalSvc.modoGlobal()
+                    ? 'w-full flex items-center gap-3 px-4 py-3 text-left bg-primary/5 border-b border-border-color'
+                    : 'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-light border-b border-border-color transition-colors'">
+            <div class="size-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined icon-fill text-primary text-[18px]">public</span>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-text-main">Vista Global</p>
+              <p class="text-[10px] text-text-secondary">Todas las sucursales</p>
+            </div>
+            @if (sucursalSvc.modoGlobal()) {
+              <span class="ml-auto material-symbols-outlined icon-fill text-primary text-[18px]">check_circle</span>
+            }
+          </button>
+
+          <!-- Lista de sucursales -->
+          @for (s of sucursalSvc.sucursales(); track s.id) {
+            <button type="button"
+                    (click)="seleccionarSucursal(s.id)"
+                    [class]="!sucursalSvc.modoGlobal() && sucursalSvc.sucursalActiva()?.id === s.id
+                      ? 'w-full flex items-center gap-3 px-4 py-3 text-left bg-primary/5 border-b border-border-color last:border-0'
+                      : 'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-light border-b border-border-color last:border-0 transition-colors'">
+              <!-- Indicador de estado -->
+              <div [class]="s.estado === 'ACTIVA'
+                  ? 'size-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0'
+                  : s.estado === 'EN_MANTENIMIENTO'
+                  ? 'size-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0'
+                  : 'size-8 rounded-lg bg-red-50 flex items-center justify-center shrink-0'">
+                <span [class]="s.estado === 'ACTIVA' ? 'material-symbols-outlined icon-fill text-emerald-600 text-[18px]'
+                    : s.estado === 'EN_MANTENIMIENTO' ? 'material-symbols-outlined icon-fill text-amber-500 text-[18px]'
+                    : 'material-symbols-outlined icon-fill text-red-500 text-[18px]'">
+                  {{ s.estado === 'ACTIVA' ? 'store' : s.estado === 'EN_MANTENIMIENTO' ? 'build' : 'store_off' }}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-text-main truncate">{{ s.nombre }}</p>
+                <p class="text-[10px] text-text-secondary truncate">{{ s.distrito }}</p>
+              </div>
+              @if (!sucursalSvc.modoGlobal() && sucursalSvc.sucursalActiva()?.id === s.id) {
+                <span class="material-symbols-outlined icon-fill text-primary text-[18px] shrink-0">check_circle</span>
+              }
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="h-7 w-px bg-border-color mx-1"></div>
+
+    <!-- Notificaciones -->
+    <button
+      class="relative text-text-secondary hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-background-light"
+      type="button"
+      title="Notificaciones"
+      aria-label="Notificaciones">
+      <span class="material-symbols-outlined text-[22px]">notifications</span>
+      @if (hayAlertas()) {
+        <span class="absolute top-0.5 right-0.5 min-w-[16px] h-4 bg-accent-red rounded-full border-2 border-surface flex items-center justify-center">
+          <span class="text-[9px] font-black text-white leading-none px-0.5">{{ cantidadAlertas() }}</span>
+        </span>
+      }
+    </button>
+
+    <!-- Ayuda -->
+    <button
+      class="text-text-secondary hover:text-primary transition-colors p-1.5 rounded-lg hover:bg-background-light"
+      type="button"
+      title="Ayuda"
+      aria-label="Ayuda">
+      <span class="material-symbols-outlined text-[22px]">help</span>
+    </button>
+
+    <div class="h-7 w-px bg-border-color mx-1"></div>
+
+    <!-- Identidad del usuario autenticado -->
+    @if (usuario(); as u) {
+      <div class="flex items-center gap-2.5">
+        <!-- Avatar — corona dorada para SUPER_ADMIN -->
+        <div [class]="esSuperAdmin()
+            ? 'size-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-black text-xs shrink-0 select-none ring-2 ring-amber-400'
+            : 'size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs shrink-0 select-none'">
+          {{ iniciales() }}
+        </div>
+        <!-- Nombre + rol (solo en pantallas lg+) -->
+        <div class="hidden lg:flex flex-col leading-tight">
+          <span class="text-xs font-bold text-text-main">{{ nombreCompleto() }}</span>
+          <span [class]="esSuperAdmin() ? 'text-[10px] text-amber-600 font-bold' : 'text-[10px] text-text-secondary font-medium'">
+            {{ rolPrincipal() }}
+          </span>
+        </div>
+      </div>
+    }
+
+  </div>
+</header>

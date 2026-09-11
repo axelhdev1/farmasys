@@ -1,0 +1,330 @@
+<aside class="w-56 2xl:w-64 bg-surface h-full flex flex-col border-r border-border-color shrink-0 z-20">
+
+  <!-- ── Logo ──────────────────────────────────────────────────────────── -->
+  <div class="h-16 flex items-center px-6 border-b border-border-color shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+        <span class="material-symbols-outlined icon-fill text-[20px]">local_pharmacy</span>
+      </div>
+      <div>
+        <h1 class="text-primary text-lg font-bold leading-none tracking-tight">FarmaSys</h1>
+        <p class="text-text-secondary text-[10px] font-medium">
+          @if (esSuperAdmin()) { Multi-Sucursal } @else { Gestión Farmacéutica }
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Navegación ─────────────────────────────────────────────────────── -->
+  <nav class="flex-1 overflow-y-auto py-5 px-3 flex flex-col gap-5">
+
+    <!-- ── SUPER ADMIN — Vista Global ─────────────────────────────────── -->
+    @if (esSuperAdmin()) {
+      <div>
+        <p class="px-3 text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1.5">
+          Multi-Sucursal
+        </p>
+        <div class="flex flex-col gap-0.5">
+          <a routerLink="/sucursales"
+             routerLinkActive="bg-amber-50 text-amber-700 font-semibold"
+             #rlaSuc="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-amber-50 hover:text-amber-700 font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaSuc.isActive">store</span>
+            Mis Sucursales
+          </a>
+          <!-- Indicador de sucursal activa o global -->
+          <div class="mx-3 mb-1 px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-100">
+            <p class="text-[10px] text-amber-600 font-bold leading-tight">
+              @if (sucursalSvc.modoGlobal()) {
+                <span class="material-symbols-outlined text-[11px] align-middle">public</span>
+                Vista global activa
+              } @else {
+                <span class="material-symbols-outlined text-[11px] align-middle">location_on</span>
+                {{ sucursalSvc.sucursalActiva()?.nombre ?? 'Sucursal' }}
+              }
+            </p>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── GENERAL (todos los roles) ──────────────────────────────────── -->
+    <div>
+      <p class="px-3 text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1.5">
+        General
+      </p>
+      <div class="flex flex-col gap-0.5">
+        <a routerLink="/dashboard"
+           routerLinkActive="bg-primary/10 text-primary font-semibold"
+           #rlaDash="routerLinkActive"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                  hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+          <span class="material-symbols-outlined text-[20px] shrink-0"
+                [class.icon-fill]="rlaDash.isActive">dashboard</span>
+          Dashboard
+        </a>
+      </div>
+    </div>
+
+    <!-- ── OPERACIONES ─────────────────────────────────────────────────── -->
+    <div>
+      <p class="px-3 text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1.5">
+        Operaciones
+      </p>
+      <div class="flex flex-col gap-0.5">
+
+        @if (puedeUsarPOS()) {
+          <a routerLink="/pos"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaPos="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaPos.isActive">point_of_sale</span>
+            Punto de Venta
+          </a>
+        }
+
+        @if (puedeUsarCaja()) {
+          <a routerLink="/caja"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaCaja="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaCaja.isActive">account_balance_wallet</span>
+            Caja
+          </a>
+        }
+
+        @if (puedeVerInventario()) {
+          <a routerLink="/inventario"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaInv="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaInv.isActive">inventory_2</span>
+            Inventario
+          </a>
+        }
+
+        @if (puedeVerCompras()) {
+          <a routerLink="/compras"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaCompras="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaCompras.isActive">medication</span>
+            Compras
+          </a>
+        }
+
+        @if (puedeVerReposicion()) {
+          <a routerLink="/reposicion"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaRepo="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaRepo.isActive">insights</span>
+            Reposición
+          </a>
+        }
+
+        @if (puedeVerMermas()) {
+          <a routerLink="/mermas"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaMermas="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaMermas.isActive">delete_sweep</span>
+            Mermas
+          </a>
+        }
+
+        @if (puedeVerTransferencias()) {
+          <a routerLink="/transferencias"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaTransf="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaTransf.isActive">swap_horiz</span>
+            Transferencias
+          </a>
+        }
+
+        @if (puedeVerInvFisico()) {
+          <a routerLink="/inventario-fisico"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaConteo="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaConteo.isActive">fact_check</span>
+            Inventario físico
+          </a>
+        }
+
+        @if (puedeVerVentas()) {
+          <a routerLink="/ventas"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaVentas="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaVentas.isActive">receipt_long</span>
+            Historial Ventas
+          </a>
+        }
+
+        @if (puedeVerClientes()) {
+          <a routerLink="/clientes"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaClientes="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaClientes.isActive">group</span>
+            Clientes
+          </a>
+        }
+
+        @if (puedeVerInventario()) {
+          <button type="button" disabled
+                  class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary/50
+                         cursor-not-allowed font-medium transition-colors text-sm text-left w-full"
+                  title="Módulo disponible próximamente">
+            <span class="material-symbols-outlined text-[20px] shrink-0">warehouse</span>
+            Almacén
+            <span class="ml-auto text-[9px] font-bold bg-amber-100 text-amber-600
+                         px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0">
+              Próximo
+            </span>
+          </button>
+        }
+
+      </div>
+    </div>
+
+    <!-- ── ADMINISTRACIÓN (Admin + Super Admin) ───────────────────────── -->
+    @if (puedeAdmin()) {
+      <div>
+        <p class="px-3 text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1.5">
+          Administración
+        </p>
+        <div class="flex flex-col gap-0.5">
+
+          @if (puedeVerFinanzas()) {
+          <a routerLink="/finanzas"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaFin="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaFin.isActive">bar_chart</span>
+            Finanzas
+          </a>
+          }
+
+          @if (puedeVerUsuarios()) {
+          <a routerLink="/usuarios"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaUsuarios="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaUsuarios.isActive">manage_accounts</span>
+            Usuarios
+          </a>
+          }
+
+          @if (puedeImportar()) {
+          <a routerLink="/importar"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaImportar="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaImportar.isActive">upload_file</span>
+            Importar catálogo
+          </a>
+          }
+
+          @if (puedeVerConfig()) {
+          <a routerLink="/configuracion"
+             routerLinkActive="bg-primary/10 text-primary font-semibold"
+             #rlaConfig="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-background-light hover:text-text-main font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaConfig.isActive">settings</span>
+            Configuración
+          </a>
+          }
+
+          <!-- Facturación electrónica — pendiente de activación -->
+          @if (puedeVerFacturacion()) {
+          <a routerLink="/facturacion"
+             routerLinkActive="bg-violet-50 text-violet-700 font-semibold"
+             #rlaFact="routerLinkActive"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-text-secondary
+                    hover:bg-violet-50 hover:text-violet-700 font-medium transition-colors text-sm">
+            <span class="material-symbols-outlined text-[20px] shrink-0"
+                  [class.icon-fill]="rlaFact.isActive">receipt_long</span>
+            Facturación
+            <span class="ml-auto text-[9px] font-bold bg-violet-100 text-violet-600
+                         px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0 whitespace-nowrap">
+              Pendiente
+            </span>
+          </a>
+          }
+
+        </div>
+      </div>
+    }
+
+  </nav>
+
+  <!-- ── Perfil del usuario ──────────────────────────────────────────────── -->
+  <div class="p-3 border-t border-border-color shrink-0">
+    @if (usuario(); as u) {
+      <div class="flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-background-light transition-colors">
+        <!-- Avatar corona dorada para SUPER_ADMIN -->
+        <div [class]="esSuperAdmin()
+            ? 'size-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-black text-xs shrink-0 ring-2 ring-amber-400'
+            : 'size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs shrink-0'">
+          {{ iniciales() }}
+        </div>
+        <!-- Nombre + rol → clic va a Mi Perfil -->
+        <button type="button" (click)="irAPerfil()"
+                class="flex-1 min-w-0 text-left"
+                title="Ver mi perfil">
+          <p class="text-xs font-bold text-text-main truncate leading-tight hover:text-primary transition-colors">
+            {{ u.nombres }} {{ u.apellidos }}
+          </p>
+          <p [class]="esSuperAdmin()
+              ? 'text-[10px] text-amber-600 font-bold truncate'
+              : 'text-[10px] text-text-secondary font-medium truncate'">
+            {{ rolPrincipal() }}
+          </p>
+        </button>
+        <!-- Botón cerrar sesión -->
+        <button type="button"
+                (click)="cerrarSesion()"
+                class="size-8 rounded-lg flex items-center justify-center text-text-secondary
+                       hover:bg-red-50 hover:text-accent-red-ink transition-colors shrink-0"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión">
+          <span class="material-symbols-outlined text-[20px]">logout</span>
+        </button>
+      </div>
+    }
+  </div>
+
+</aside>

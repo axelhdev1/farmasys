@@ -1,0 +1,9 @@
+// Configuración — estilos reutilizables del módulo
+// input-field: campo de formulario estándar del sistema
+
+.input-field {
+  @apply px-3 py-2.5 rounded-xl border border-border-color
+         text-sm text-text-main bg-background-light
+         focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+         transition-all;
+}

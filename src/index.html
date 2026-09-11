@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>FarmaSys — Gestión Farmacéutica</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FarmaSys: sistema integral de gestión para boticas y farmacias — punto de venta, inventario por sucursal, recetas, facturación y reportes.">
+  <meta name="application-name" content="FarmaSys">
+  <!-- El azul de la marca (#0055FF), no un azul cualquiera: esto es lo que
+       pinta la barra del navegador en móvil. -->
+  <meta name="theme-color" content="#0055FF">
+
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+  <!-- Open Graph (para enlaces compartidos) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="FarmaSys — Gestión Farmacéutica">
+  <meta property="og:description" content="Punto de venta, inventario por sucursal, recetas, facturación y reportes para boticas y farmacias.">
+  <meta property="og:locale" content="es_PE">
+
+  <!-- Tipografía e iconos.
+       Inter faltaba: el tema declaraba Manrope como fuente de marca y el layout
+       aplicaba la clase, pero nunca se descargaba ninguna fuente, así que todo
+       el sistema se dibujaba con la de serie del sistema operativo. Se pide en
+       la MISMA petición que los iconos —un solo viaje— y con preconnect, que
+       tampoco estaba: sin él el navegador descubre gstatic tarde y el texto
+       parpadea al cargar.
+       Inter llega al peso 900 de verdad; las cifras grandes ya no dependen de
+       que el navegador engorde un 800 a mano. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" />
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>

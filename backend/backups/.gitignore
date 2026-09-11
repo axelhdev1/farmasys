@@ -1,0 +1,4 @@
+# Respaldos de la base de datos (generados automáticamente).
+# Se ignora todo menos este archivo, para que la carpeta exista en el repo.
+*
+!.gitignore

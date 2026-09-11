@@ -1,0 +1,686 @@
+<!-- ══════════════════════════════════════════════════════════════
+     USUARIOS — Gestión de cuentas del sistema
+     ══════════════════════════════════════════════════════════════ -->
+<div class="flex flex-col gap-5 max-w-7xl mx-auto">
+
+  <!-- ── Encabezado ─────────────────────────────────────────────────── -->
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h2 class="text-xl font-bold text-text-main leading-tight">Gestión de Usuarios</h2>
+      <p class="text-sm text-text-secondary mt-0.5">
+        Administra las cuentas, roles y permisos del personal
+      </p>
+    </div>
+    <div class="flex gap-2 shrink-0">
+      <button type="button" (click)="exportarCSV()"
+              class="h-10 px-4 bg-white hover:bg-gray-50 text-text-main border border-border-color rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+        <span class="material-symbols-outlined text-[18px] text-green-600">file_download</span>
+        Exportar
+      </button>
+      <button type="button" (click)="abrirNuevo()"
+              class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+        <span class="material-symbols-outlined text-[18px]">person_add</span>
+        Nuevo Usuario
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Pestañas: cuentas / auditoría de accesos ───────────────────────
+       La auditoría es lo que permite investigar un descuadre: antes el único
+       rastro era "último acceso", que se sobrescribe en cada login. -->
+  <div class="flex gap-1 border-b border-border-color">
+    <button type="button" (click)="vista.set('cuentas')"
+      class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors"
+      [class]="vista() === 'cuentas'
+        ? 'border-primary text-primary'
+        : 'border-transparent text-text-secondary hover:text-text-main'">
+      Cuentas
+    </button>
+    <button type="button" (click)="verAccesos()"
+      class="px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors inline-flex items-center gap-1.5"
+      [class]="vista() === 'accesos'
+        ? 'border-primary text-primary'
+        : 'border-transparent text-text-secondary hover:text-text-main'">
+      Accesos
+      @if (accesos()?.sospechosas?.length) {
+        <span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-accent-red text-white">
+          {{ accesos()!.sospechosas.length }}
+        </span>
+      }
+    </button>
+  </div>
+
+  <!-- ══ AUDITORÍA DE ACCESOS ═══════════════════════════════════════════ -->
+  @if (vista() === 'accesos') {
+    <div class="flex flex-col gap-4">
+
+      <!-- Resumen del período -->
+      @if (accesos(); as a) {
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-surface rounded-xl border border-border-color p-4">
+            <p class="text-xs font-medium text-text-secondary mb-1">Ingresos correctos</p>
+            <p class="text-2xl font-black text-text-main tabular-nums">{{ a.exitosos }}</p>
+          </div>
+          <div class="bg-surface rounded-xl border p-4"
+               [class]="a.fallidos > 0 ? 'border-amber-200' : 'border-border-color'">
+            <p class="text-xs font-medium text-text-secondary mb-1">Intentos fallidos</p>
+            <p class="text-2xl font-black tabular-nums"
+               [class]="a.fallidos > 0 ? 'text-accent-orange-ink' : 'text-text-main'">{{ a.fallidos }}</p>
+          </div>
+          <div class="bg-surface rounded-xl border p-4 col-span-2"
+               [class]="a.sospechosas.length ? 'border-red-200' : 'border-border-color'">
+            <p class="text-xs font-medium text-text-secondary mb-1">Cuentas con 3+ fallos</p>
+            @if (a.sospechosas.length) {
+              <div class="flex flex-wrap gap-1.5 mt-1">
+                @for (s of a.sospechosas; track s.email) {
+                  <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-accent-red-ink">
+                    {{ s.email }} · {{ s.intentos }}
+                  </span>
+                }
+              </div>
+            } @else {
+              <p class="text-sm font-semibold text-emerald-600 mt-1">Ninguna — sin señales raras</p>
+            }
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="flex items-center gap-2 flex-wrap">
+          @for (d of [7, 15, 30]; track d) {
+            <button type="button" (click)="cambiarDiasAccesos(d)"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+              [class]="diasAccesos() === d
+                ? 'bg-primary text-white border-primary'
+                : 'bg-surface text-text-secondary border-border-color hover:bg-background-light'">
+              {{ d }} días
+            </button>
+          }
+          <label class="flex items-center gap-2 ml-2 cursor-pointer">
+            <input type="checkbox" [checked]="soloFallidos()" (change)="toggleSoloFallidos()"
+              class="size-4 rounded border-border-color text-primary focus:ring-primary/20">
+            <span class="text-xs font-medium text-text-secondary">Solo intentos fallidos</span>
+          </label>
+        </div>
+
+        <!-- Listado -->
+        <div class="bg-surface rounded-xl border border-border-color overflow-hidden">
+          <div class="divide-y divide-border-color max-h-[32rem] overflow-y-auto">
+            @for (r of a.registros; track r.id) {
+              <div class="flex items-center gap-3 px-4 py-2.5">
+                <div class="size-8 rounded-lg flex items-center justify-center shrink-0"
+                     [class]="r.exito ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-accent-red-ink'">
+                  <span class="material-symbols-outlined text-[16px]">
+                    {{ r.exito ? 'login' : 'block' }}
+                  </span>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-text-main truncate">
+                    {{ r.nombre ?? r.email }}
+                    @if (r.nombre) { <span class="font-normal text-text-secondary">· {{ r.email }}</span> }
+                  </p>
+                  <p class="text-[11px] text-text-secondary">
+                    {{ fechaHora(r.fecha) }}
+                    @if (r.ip) { · {{ r.ip }} }
+                    @if (!r.exito) { · <span class="text-accent-red-ink font-semibold">{{ etiquetaMotivo(r.motivo) }}</span> }
+                  </p>
+                </div>
+              </div>
+            } @empty {
+              <div class="flex flex-col items-center justify-center py-12 text-center">
+                <div class="size-11 rounded-xl bg-background-light text-text-secondary flex items-center justify-center mb-3">
+                  <span class="material-symbols-outlined text-[22px]">history</span>
+                </div>
+                <p class="text-sm font-semibold text-text-main">Sin accesos en el período</p>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <p class="text-sm text-text-secondary">Cargando accesos…</p>
+      }
+    </div>
+  }
+
+  @if (vista() === 'cuentas') {
+
+  <!-- ── KPI Cards ───────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="bg-surface rounded-2xl border border-border-color p-4 flex items-center gap-3 border-l-4 border-l-emerald-500">
+      <div class="size-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-emerald-600 text-[20px]">check_circle</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none">{{ kpis().activos }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Activos · de {{ kpis().total }}</p>
+      </div>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-border-color p-4 flex items-center gap-3 border-l-4 border-l-primary">
+      <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-primary text-[20px]">admin_panel_settings</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none">{{ kpis().admins }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Administradores</p>
+      </div>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-border-color p-4 flex items-center gap-3 border-l-4 border-l-violet-500">
+      <div class="size-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-violet-600 text-[20px]">medical_services</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none">{{ kpis().farmaceuticos }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">Farmacéuticos</p>
+      </div>
+    </div>
+
+    <div class="bg-surface rounded-2xl border border-border-color p-4 flex items-center gap-3 border-l-4 border-l-orange-500">
+      <div class="size-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined icon-fill text-orange-600 text-[20px]">inventory_2</span>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-text-main leading-none">{{ kpis().vendedores + kpis().almaceneros }}</p>
+        <p class="text-xs text-text-secondary font-medium mt-0.5">
+          {{ kpis().vendedores }} ventas · {{ kpis().almaceneros }} almacén
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Filtros ─────────────────────────────────────────────────────── -->
+  <div class="bg-surface rounded-2xl border border-border-color p-4 flex flex-col sm:flex-row gap-3">
+    <div class="relative flex-1">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-[18px] pointer-events-none">search</span>
+      <input type="text"
+             placeholder="Buscar por nombre, email o DNI..."
+             [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+             name="busqueda"
+             class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border-color text-sm text-text-main bg-background-light focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-text-secondary/60 transition-all">
+    </div>
+    <div class="flex gap-1.5 flex-wrap">
+      @for (opcion of opcionesFiltro; track opcion.valor) {
+        <button type="button" (click)="filtroRol.set(opcion.valor)"
+                [class]="filtroRol() === opcion.valor
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-background-light text-text-secondary border-border-color hover:border-primary/50 hover:text-text-main'"
+                class="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors whitespace-nowrap">
+          {{ opcion.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── Tabla ───────────────────────────────────────────────────────── -->
+  <div class="bg-surface rounded-2xl border border-border-color overflow-hidden">
+    <div class="hidden sm:grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-4 px-5 py-3 bg-background-light border-b border-border-color text-[11px] font-bold text-text-secondary uppercase tracking-wider">
+      <div class="w-10"></div>
+      <div>Usuario</div>
+      <div class="w-40 text-left">Roles</div>
+      <div class="w-32 text-left">Sucursal</div>
+      <div class="w-24 text-center">Estado</div>
+      <div class="w-28 text-right">Acciones</div>
+    </div>
+
+    @if (cargando()) {
+      @for (s of [1,2,3,4,5]; track s) {
+        <div class="grid grid-cols-[auto_1fr_auto] gap-4 items-center px-5 py-4 border-b border-border-color last:border-0">
+          <div class="fs-skeleton size-10 rounded-full"></div>
+          <div class="space-y-2">
+            <div class="fs-skeleton h-4 w-40 rounded"></div>
+            <div class="fs-skeleton h-3 w-56 rounded"></div>
+          </div>
+          <div class="fs-skeleton h-6 w-20 rounded-full"></div>
+        </div>
+      }
+    } @else if (usuariosFiltrados().length === 0) {
+      <div class="flex flex-col items-center justify-center py-16 text-text-secondary">
+        <span class="material-symbols-outlined text-[48px] mb-3 opacity-40">manage_accounts</span>
+        <p class="font-semibold text-sm">No se encontraron usuarios</p>
+        <p class="text-xs mt-1">Prueba cambiando el filtro o la búsqueda</p>
+      </div>
+    } @else {
+      @for (u of usuariosFiltrados(); track u.id) {
+        <div class="fs-fade-in-up grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center px-5 py-4 border-b border-border-color last:border-0 hover:bg-background-light/60 transition-colors"
+             [class.opacity-60]="u.estado === 'INACTIVO'">
+
+          <div [class]="'size-10 rounded-full flex items-center justify-center font-black text-sm shrink-0 ' + colorAvatar(u)">
+            {{ iniciales(u) }}
+          </div>
+
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <p class="text-sm font-bold text-text-main leading-tight truncate">
+                {{ u.nombres }} {{ u.apellidos }}
+              </p>
+              @if (esYoMismo(u)) {
+                <span class="text-[11px] font-semibold px-1.5 py-0.5 bg-primary-50 text-primary-600 rounded">Tú</span>
+              }
+              @if (esRegente(u)) {
+                <span class="text-[10px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded inline-flex items-center gap-0.5"
+                      title="Químico Farmacéutico regente de la sucursal">
+                  <span class="material-symbols-outlined text-[12px]">verified</span>QF Regente
+                </span>
+              }
+              @if (u.debeCambiarPassword) {
+                <span class="text-[10px] font-bold px-1.5 py-0.5 bg-accent-orange/10 text-accent-orange-ink rounded"
+                      title="Aún no ha cambiado su contraseña temporal">Clave temporal</span>
+              }
+            </div>
+            <p class="text-xs text-text-secondary truncate mt-0.5">
+              {{ u.email }}@if (u.telefono) { · {{ u.telefono }} }
+            </p>
+            <p class="text-[11px] text-text-secondary/80 mt-0.5">
+              DNI {{ u.dni || '—' }} · Último acceso: {{ u.ultimoAcceso }}
+            </p>
+          </div>
+
+          <!-- Roles (desktop) -->
+          <div class="hidden sm:flex w-40 flex-wrap gap-1">
+            @for (r of u.roles; track r) {
+              <span [class]="'text-[10px] font-bold px-2 py-0.5 rounded-full ' + clasesRol(r)">
+                {{ etiquetaRol(r) }}
+              </span>
+            }
+          </div>
+
+          <!-- Sucursal -->
+          <div class="hidden sm:flex w-32 text-xs text-text-main truncate">
+            @if (u.sucursalActualId) {
+              <span class="flex items-center gap-1 truncate">
+                <span class="material-symbols-outlined text-[14px] text-text-secondary">store</span>
+                <span class="truncate">{{ nombreSucursal(u.sucursalActualId) }}</span>
+              </span>
+            } @else {
+              <span class="text-text-secondary/60 italic">Multi-sucursal</span>
+            }
+          </div>
+
+          <!-- Estado -->
+          <div class="hidden sm:flex w-24 justify-center">
+            <button type="button" (click)="pedirToggleEstado(u)"
+                    [class]="u.estado === 'ACTIVO'
+                      ? 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer'
+                      : 'text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-colors cursor-pointer'">
+              <span class="flex items-center gap-1">
+                <span [class]="u.estado === 'ACTIVO' ? 'size-1.5 rounded-full bg-emerald-500 inline-block' : 'size-1.5 rounded-full bg-red-500 inline-block'"></span>
+                {{ u.estado === 'ACTIVO' ? 'Activo' : 'Inactivo' }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Acciones -->
+          <div class="hidden sm:flex w-28 justify-end gap-1">
+            <button type="button" (click)="abrirEdicion(u)"
+                    class="size-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-primary/10 hover:text-primary transition-colors"
+                    title="Editar usuario">
+              <span class="material-symbols-outlined text-[18px]">edit</span>
+            </button>
+            <button type="button" (click)="abrirReset(u)"
+                    class="size-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                    title="Resetear contraseña">
+              <span class="material-symbols-outlined text-[18px]">password</span>
+            </button>
+            <button type="button" (click)="pedirToggleEstado(u)"
+                    [title]="u.estado === 'ACTIVO' ? 'Desactivar usuario' : 'Activar usuario'"
+                    [disabled]="esYoMismo(u) && u.estado === 'ACTIVO'"
+                    [class]="u.estado === 'ACTIVO'
+                      ? 'size-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                      : 'size-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-emerald-50 hover:text-emerald-600 transition-colors'">
+              <span class="material-symbols-outlined text-[18px]">
+                {{ u.estado === 'ACTIVO' ? 'person_off' : 'person_check' }}
+              </span>
+            </button>
+          </div>
+        </div>
+      }
+    }
+
+    <div class="px-5 py-3 border-t border-border-color bg-gray-50 flex items-center justify-between text-xs">
+      <span class="text-text-secondary">{{ usuariosFiltrados().length }} usuario(s) encontrado(s)</span>
+    </div>
+  </div>
+  } <!-- fin pestaña Cuentas -->
+</div>
+
+
+<!-- ══════════════════════ MODAL CREAR / EDITAR ══════════════════════════ -->
+@if (modalAbierto()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="cerrarModal()">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+    <div class="relative bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col border border-border-color overflow-hidden"
+         (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-border-color shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill text-primary">{{ modoModal() === 'editar' ? 'edit' : 'person_add' }}</span>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-text-main leading-tight">
+              {{ modoModal() === 'editar' ? 'Editar Usuario' : 'Nuevo Usuario' }}
+            </h3>
+            <p class="text-xs text-text-secondary">
+              {{ modoModal() === 'editar' ? 'Modifica los datos del usuario' : 'Crea una cuenta nueva con acceso al sistema' }}
+            </p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarModal()"
+                class="size-9 rounded-lg flex items-center justify-center text-text-secondary hover:bg-background-light hover:text-text-main transition-colors">
+          <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="px-6 py-5 overflow-y-auto flex-1">
+        <form (submit)="guardar(); $event.preventDefault()" class="flex flex-col gap-4">
+
+          <!-- Nombres + Apellidos -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Nombres <span class="text-red-500">*</span>
+              </label>
+              <input type="text" name="nombres" placeholder="Ej. María"
+                     [ngModel]="formNombres()" (ngModelChange)="formNombres.set($event)"
+                     class="w-full px-3 py-2.5 rounded-xl border border-border-color text-sm bg-background-light focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-text-secondary/50 transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Apellidos <span class="text-red-500">*</span>
+              </label>
+              <input type="text" name="apellidos" placeholder="Ej. Quispe Torres"
+                     [ngModel]="formApellidos()" (ngModelChange)="formApellidos.set($event)"
+                     class="w-full px-3 py-2.5 rounded-xl border border-border-color text-sm bg-background-light focus:ring-2 focus:ring-primary/30 focus:border-primary placeholder:text-text-secondary/50 transition-all">
+            </div>
+          </div>
+
+          <!-- DNI + Email -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                DNI <span class="text-red-500">*</span>
+                <span class="font-normal normal-case text-text-secondary/70">(8 dígitos)</span>
+              </label>
+              <input type="text" name="dni" placeholder="12345678"
+                     [ngModel]="formDni()" (ngModelChange)="formDni.set($event)"
+                     class="w-full px-3 py-2.5 rounded-xl border text-sm font-mono bg-background-light focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all"
+                     [class.border-accent-red]="errorDni()"
+                     [class.border-border-color]="!errorDni()"
+                     [class.focus:border-primary]="!errorDni()">
+              @if (errorDni()) {
+                <p class="text-[11px] text-accent-red-ink font-semibold mt-1 flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[12px]">error</span>{{ errorDni() }}
+                </p>
+              }
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Email <span class="text-red-500">*</span>
+              </label>
+              <input type="email" name="email" placeholder="usuario@farmasys.com"
+                     [ngModel]="formEmail()" (ngModelChange)="formEmail.set($event)"
+                     class="w-full px-3 py-2.5 rounded-xl border text-sm bg-background-light focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all"
+                     [class.border-accent-red]="errorEmail()"
+                     [class.border-border-color]="!errorEmail()"
+                     [class.focus:border-primary]="!errorEmail()">
+              @if (errorEmail()) {
+                <p class="text-[11px] text-accent-red-ink font-semibold mt-1 flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[12px]">error</span>{{ errorEmail() }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <!-- Teléfono (opcional) -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Teléfono <span class="font-normal normal-case text-text-secondary/70">(opcional)</span>
+            </label>
+            <input type="tel" name="telefono" placeholder="987654321"
+                   [ngModel]="formTelefono()" (ngModelChange)="formTelefono.set($event)"
+                   class="w-full px-3 py-2.5 rounded-xl border border-border-color text-sm bg-background-light focus:ring-2 focus:ring-primary/30 focus:bg-white focus:border-primary transition-all">
+          </div>
+
+          <!-- Roles (checkboxes multi-select) -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Roles <span class="text-red-500">*</span>
+              <span class="font-normal normal-case text-text-secondary/70">(selecciona uno o más)</span>
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              @for (rol of rolesDisponibles; track rol.valor) {
+                <label class="flex items-start gap-2 p-2.5 rounded-xl border cursor-pointer transition-colors hover:bg-background-light"
+                       [class.border-primary]="rolSeleccionado(rol.valor)"
+                       [class.bg-primary/5]="rolSeleccionado(rol.valor)"
+                       [class.border-border-color]="!rolSeleccionado(rol.valor)">
+                  <input type="checkbox"
+                         [checked]="rolSeleccionado(rol.valor)"
+                         (change)="toggleRol(rol.valor)"
+                         class="mt-0.5 size-4 rounded border-border-color text-primary focus:ring-primary/20">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-bold text-text-main">{{ rol.label }}</p>
+                    <p class="text-[10px] text-text-secondary leading-tight">{{ rol.descripcion }}</p>
+                  </div>
+                </label>
+              }
+            </div>
+          </div>
+
+          <!-- Accesos del usuario (permisos por módulo) -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">
+              Accesos del usuario
+            </label>
+            <p class="text-[11px] text-text-secondary mb-2.5">
+              El rol pre-marca los accesos; puedes ajustarlos. Los de Gestión requieren rol Administrador.
+            </p>
+            <div class="space-y-3">
+              @for (grupo of gruposModulos; track grupo.titulo) {
+                <div>
+                  <p class="text-[10px] font-bold text-text-secondary/80 uppercase tracking-wider mb-1.5">{{ grupo.titulo }}</p>
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    @for (m of grupo.modulos; track m.id) {
+                      <label
+                        [title]="puedeMarcarPermiso(m.id) ? '' : tooltipPiso(m.requiere)"
+                        [class]="puedeMarcarPermiso(m.id)
+                          ? (permisoMarcado(m.id)
+                              ? 'flex items-center gap-2 px-2.5 py-2 rounded-lg border border-primary bg-primary/10 cursor-pointer transition-colors'
+                              : 'flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border-color cursor-pointer hover:bg-background-light transition-colors')
+                          : 'flex items-center gap-2 px-2.5 py-2 rounded-lg border border-border-color bg-background-light opacity-50 cursor-not-allowed'">
+                        <input type="checkbox"
+                               [checked]="permisoMarcado(m.id)"
+                               [disabled]="!puedeMarcarPermiso(m.id)"
+                               (change)="togglePermiso(m.id)"
+                               class="size-4 rounded border-border-color text-primary focus:ring-primary/20 disabled:opacity-50">
+                        <span class="text-[11px] font-semibold text-text-main truncate">{{ m.label }}</span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Sucursal (oculto si SUPER_ADMIN) -->
+          @if (!formRoles().includes('SUPER_ADMIN')) {
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Sucursal asignada <span class="text-red-500">*</span>
+              </label>
+              <select name="sucursal"
+                      [ngModel]="formSucursalId()" (ngModelChange)="formSucursalId.set($event)"
+                      class="w-full px-3 py-2.5 rounded-xl border border-border-color text-sm bg-background-light focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all">
+                @for (s of sucursales(); track s.id) {
+                  <option [value]="s.id">{{ s.nombre }} ({{ s.distrito }})</option>
+                }
+              </select>
+            </div>
+          } @else {
+            <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <span class="material-symbols-outlined icon-fill text-amber-500 text-[18px] shrink-0 mt-0.5">warning</span>
+              <p class="text-xs text-amber-700 leading-relaxed">
+                El rol <strong>Super Admin</strong> tiene acceso global a TODAS las sucursales.
+                Asignalo solo al dueno o desarrollador del sistema.
+              </p>
+            </div>
+          }
+
+          @if (modoModal() === 'crear') {
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Contrasena inicial <span class="text-red-500">*</span>
+                <span class="font-normal normal-case text-text-secondary/70">(minimo 8, con letras y numeros)</span>
+              </label>
+              <div class="relative">
+                <input [type]="formMostrarPwd() ? 'text' : 'password'" name="password"
+                       placeholder="••••••••"
+                       [ngModel]="formPassword()" (ngModelChange)="formPassword.set($event)"
+                       class="w-full pl-3 pr-24 py-2.5 rounded-xl border text-sm font-mono bg-background-light focus:ring-2 focus:ring-primary/30 focus:bg-white transition-all"
+                       [class.border-accent-red]="errorPassword()"
+                       [class.border-border-color]="!errorPassword()"
+                       [class.focus:border-primary]="!errorPassword()">
+                <div class="absolute inset-y-0 right-2 flex items-center gap-1">
+                  <button type="button" (click)="toggleMostrarPwd()"
+                          class="size-7 rounded-lg flex items-center justify-center text-text-secondary hover:bg-background-light"
+                          [title]="formMostrarPwd() ? 'Ocultar' : 'Mostrar'">
+                    <span class="material-symbols-outlined text-[18px]">
+                      {{ formMostrarPwd() ? 'visibility_off' : 'visibility' }}
+                    </span>
+                  </button>
+                  <button type="button" (click)="regenerarPasswordForm()"
+                          class="size-7 rounded-lg flex items-center justify-center text-text-secondary hover:bg-background-light"
+                          title="Generar nueva">
+                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                  </button>
+                </div>
+              </div>
+              @if (errorPassword()) {
+                <p class="text-[11px] text-accent-red-ink font-semibold mt-1 flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[12px]">error</span>{{ errorPassword() }}
+                </p>
+              } @else {
+                <p class="text-[10px] text-text-secondary mt-1">
+                  El usuario debera cambiarla al iniciar sesion por primera vez.
+                </p>
+              }
+            </div>
+          }
+
+        </form>
+      </div>
+
+      <div class="px-6 py-4 border-t border-border-color bg-gray-50 flex gap-2 justify-end shrink-0">
+        <button type="button" (click)="cerrarModal()"
+                class="px-4 py-2.5 rounded-xl text-sm font-semibold text-text-secondary hover:bg-background-light transition-colors">
+          Cancelar
+        </button>
+        <button type="button" (click)="guardar()"
+                [disabled]="!formularioValido() || guardando()"
+                class="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary transition-colors flex items-center gap-2">
+          @if (guardando()) {
+            <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+            Guardando…
+          } @else {
+            <span class="material-symbols-outlined text-[18px]">save</span>
+            {{ modoModal() === 'editar' ? 'Guardar cambios' : 'Crear usuario' }}
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+
+@if (modalConfirmar()) {
+  @if (usuarioConfirmar(); as u) {
+    <div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cancelarToggle()">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" (click)="$event.stopPropagation()">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="size-10 rounded-full bg-red-50 flex items-center justify-center text-accent-red-ink">
+            <span class="material-symbols-outlined icon-fill">person_off</span>
+          </div>
+          <h3 class="font-black text-lg text-text-main">Desactivar usuario?</h3>
+        </div>
+        <p class="text-sm text-text-secondary mb-2">
+          <strong>{{ u.nombres }} {{ u.apellidos }}</strong> no podra iniciar sesion hasta que sea reactivado.
+        </p>
+        <p class="text-sm text-text-secondary mb-5">
+          Su historial de ventas y movimientos se conserva intacto.
+        </p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" (click)="cancelarToggle()"
+                  class="px-4 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-background-light transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmarToggle()"
+                  class="px-4 py-2 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors">
+            Si, desactivar
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+@if (modalReset()) {
+  @if (usuarioReset(); as u) {
+    <div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cancelarReset()">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" (click)="$event.stopPropagation()">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="size-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+            <span class="material-symbols-outlined icon-fill">password</span>
+          </div>
+          <h3 class="font-black text-lg text-text-main">Resetear contrasena</h3>
+        </div>
+        <p class="text-sm text-text-secondary mb-4">
+          Se generara una nueva contrasena temporal para <strong>{{ u.nombres }} {{ u.apellidos }}</strong>.
+          Copiala y entregasela al usuario, solo se mostrara una vez.
+        </p>
+
+        <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+          Nueva contrasena temporal
+        </label>
+        <div class="relative mb-4">
+          <input type="text" readonly [value]="passwordGeneradaReset()"
+                 class="w-full pl-3 pr-24 py-3 rounded-xl border border-border-color text-base font-mono font-bold bg-background-light focus:outline-none">
+          <div class="absolute inset-y-0 right-2 flex items-center gap-1">
+            <button type="button" (click)="regenerarPasswordReset()"
+                    class="size-8 rounded-lg flex items-center justify-center text-text-secondary hover:bg-background-light"
+                    title="Generar otra">
+              <span class="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+            <button type="button" (click)="copiarPassword(passwordGeneradaReset())"
+                    class="size-8 rounded-lg flex items-center justify-center text-primary hover:bg-primary/10"
+                    title="Copiar">
+              <span class="material-symbols-outlined text-[18px]">content_copy</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-5">
+          <span class="material-symbols-outlined text-amber-600 text-[18px] shrink-0">info</span>
+          <p class="text-xs text-amber-800 leading-relaxed">
+            El usuario debera cambiar esta contrasena la proxima vez que inicie sesion.
+            Sus sesiones activas seran cerradas automaticamente.
+          </p>
+        </div>
+
+        <div class="flex gap-2 justify-end">
+          <button type="button" (click)="cancelarReset()"
+                  class="px-4 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-background-light transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmarReset()"
+                  class="px-4 py-2 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors">
+            Confirmar reset
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}

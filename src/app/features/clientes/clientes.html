@@ -1,0 +1,507 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-6">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────── -->
+  <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Clientes</h2>
+      <p class="text-text-secondary text-sm mt-1">Directorio de clientes registrados y su historial.</p>
+    </div>
+    <button (click)="abrirModalNuevo()"
+            class="h-10 px-4 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm self-start md:self-auto">
+      <span class="material-symbols-outlined text-[20px]">person_add</span>
+      Nuevo Cliente
+    </button>
+  </div>
+
+  <!-- ── KPIs ──────────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Total Clientes</span>
+        <div class="p-1.5 bg-primary-50 text-primary rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ kpis().total }}</span>
+      <span class="text-xs text-accent-green-ink font-medium">{{ kpis().activos }} activos</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Con Email</span>
+        <div class="p-1.5 bg-violet-50 text-violet-600 rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">mail</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ kpis().conEmail }}</span>
+      <span class="text-xs text-text-secondary font-medium">registrados</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Ventas Acumuladas</span>
+        <div class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">payments</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ formatSol(kpis().totalCompras) }}</span>
+      <span class="text-xs text-text-secondary font-medium">histórico total</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Inactivos</span>
+        <div class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">person_off</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ kpis().total - kpis().activos }}</span>
+      <span class="text-xs text-text-secondary font-medium">sin actividad reciente</span>
+    </div>
+  </div>
+
+  <!-- ── Búsqueda y filtros ─────────────────────────────────────────── -->
+  <div class="flex flex-col md:flex-row gap-3 bg-surface p-4 rounded-xl border border-border-color shadow-soft">
+    <div class="relative flex-1">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span class="material-symbols-outlined text-text-secondary text-[20px]">search</span>
+      </div>
+      <input type="text"
+        [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+        placeholder="Buscar por nombre, DNI, RUC o email..."
+        class="block w-full pl-10 pr-3 h-10 border border-border-color bg-background-light rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      @for (op of [['todos','Todos'],['activo','Activos'],['inactivo','Inactivos']]; track op[0]) {
+        <button (click)="filtroEstado.set($any(op[0]))"
+          class="h-10 px-4 rounded-lg text-sm font-semibold border transition-colors"
+          [class.bg-primary]="filtroEstado() === op[0]" [class.text-white]="filtroEstado() === op[0]"
+          [class.border-primary]="filtroEstado() === op[0]" [class.bg-white]="filtroEstado() !== op[0]"
+          [class.text-text-secondary]="filtroEstado() !== op[0]" [class.border-border-color]="filtroEstado() !== op[0]">
+          {{ op[1] }}
+        </button>
+      }
+      <button (click)="exportarCSV()"
+              class="h-10 px-3 bg-white hover:bg-gray-50 text-text-main border border-border-color rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors">
+        <span class="material-symbols-outlined text-[18px]">file_download</span>Exportar
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Tabla + Panel detalle ─────────────────────────────────────── -->
+  <div class="flex gap-6 items-start">
+
+    <!-- Tabla -->
+    <div class="flex-1 bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden min-w-0">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color">
+            <tr>
+              <th class="px-5 py-3">Cliente</th>
+              <th class="px-5 py-3">Documento</th>
+              <th class="px-5 py-3">Contacto</th>
+              <th class="px-5 py-3 text-right">Total Compras</th>
+              <th class="px-5 py-3">Última Compra</th>
+              <th class="px-5 py-3 text-center">Estado</th>
+              <th class="px-5 py-3 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color text-sm">
+            @for (c of clientesFiltrados(); track c.id) {
+              <tr class="hover:bg-gray-50 transition-colors cursor-pointer"
+                  [class.bg-primary-50]="clienteSeleccionado()?.id === c.id"
+                  (click)="verDetalle(c)">
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-3">
+                    <div class="size-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0" [class]="colorAvatar(c.id)">
+                      {{ iniciales(c) }}
+                    </div>
+                    <div>
+                      <div class="font-semibold text-text-main">{{ nombreCompleto(c) }}</div>
+                      @if (c.puntos && c.puntos > 0) {
+                        <div class="text-xs text-amber-600 font-medium flex items-center gap-0.5">
+                          <span class="material-symbols-outlined text-[12px] icon-fill">star</span>{{ c.puntos }} pts
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-3">
+                  <div class="text-[10px] font-bold text-text-secondary uppercase">{{ c.tipoDocumento }}</div>
+                  <div class="font-mono text-sm text-text-main">{{ c.numeroDocumento }}</div>
+                </td>
+                <td class="px-5 py-3">
+                  @if (c.telefono) {
+                    <div class="flex items-center gap-1 text-xs text-text-secondary">
+                      <span class="material-symbols-outlined text-[13px]">phone</span>{{ c.telefono }}
+                    </div>
+                  }
+                  @if (c.email) {
+                    <div class="flex items-center gap-1 text-xs text-text-secondary max-w-[160px] truncate">
+                      <span class="material-symbols-outlined text-[13px]">mail</span>{{ c.email }}
+                    </div>
+                  }
+                </td>
+                <td class="px-5 py-3 text-right font-bold text-text-main">{{ formatSol(c.totalCompras) }}</td>
+                <td class="px-5 py-3 text-sm text-text-secondary">{{ c.ultimaCompra }}</td>
+                <td class="px-5 py-3 text-center">
+                  @if (c.estado === 'activo') {
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                      <span class="size-1.5 rounded-full bg-emerald-500"></span>Activo
+                    </span>
+                  } @else {
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">
+                      <span class="size-1.5 rounded-full bg-gray-400"></span>Inactivo
+                    </span>
+                  }
+                </td>
+                <td class="px-5 py-3 text-center">
+                  <div class="flex items-center justify-center gap-1">
+                    <button (click)="verDetalle(c); $event.stopPropagation()"
+                      class="p-1.5 hover:bg-primary-50 hover:text-primary text-text-secondary rounded-lg transition-colors" title="Ver detalle">
+                      <span class="material-symbols-outlined text-[18px]">visibility</span>
+                    </button>
+                    <button (click)="abrirModalEditar(c, $event)"
+                      class="p-1.5 hover:bg-gray-100 text-text-secondary rounded-lg transition-colors" title="Editar">
+                      <span class="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button (click)="toggleEstado(c, $event)"
+                      class="p-1.5 hover:bg-amber-50 hover:text-amber-600 text-text-secondary rounded-lg transition-colors"
+                      [title]="c.estado === 'activo' ? 'Desactivar' : 'Activar'">
+                      <span class="material-symbols-outlined text-[18px]">
+                        {{ c.estado === 'activo' ? 'toggle_on' : 'toggle_off' }}
+                      </span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="px-5 py-16 text-center">
+                  <div class="flex flex-col items-center gap-3 text-text-secondary">
+                    <span class="material-symbols-outlined text-[48px] text-gray-300">person_search</span>
+                    <p class="font-medium">No se encontraron clientes</p>
+                    <p class="text-xs">Intenta con otro término de búsqueda</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="px-5 py-3 border-t border-border-color bg-gray-50 flex items-center justify-between">
+        <span class="text-xs text-text-secondary">{{ clientesFiltrados().length }} cliente(s) encontrado(s)</span>
+        <div class="flex gap-1">
+          <button class="px-3 py-1 border border-border-color bg-white rounded text-xs font-medium text-text-secondary hover:bg-gray-50 disabled:opacity-50" disabled>Anterior</button>
+          <button class="px-3 py-1 border border-border-color bg-white rounded text-xs font-medium text-text-secondary hover:bg-gray-50">Siguiente</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel lateral de detalle -->
+    @if (clienteSeleccionado(); as c) {
+      <div class="w-80 xl:w-96 bg-surface rounded-xl border border-border-color shadow-soft flex flex-col overflow-hidden shrink-0">
+        <div class="p-5 bg-gradient-to-br from-primary-50 to-primary-100 border-b border-border-color flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="size-14 rounded-full flex items-center justify-center font-bold text-xl shrink-0" [class]="colorAvatar(c.id)">
+              {{ iniciales(c) }}
+            </div>
+            <div>
+              <h3 class="font-bold text-text-main leading-tight">{{ nombreCompleto(c) }}</h3>
+              <p class="text-xs text-text-secondary mt-0.5">{{ c.tipoDocumento }}: {{ c.numeroDocumento }}</p>
+              @if (c.puntos && c.puntos > 0) {
+                <span class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
+                  <span class="material-symbols-outlined text-[12px] icon-fill">star</span>{{ c.puntos }} puntos
+                </span>
+              }
+            </div>
+          </div>
+          <button (click)="cerrarDetalle()" class="p-1 rounded-lg hover:bg-black/10 text-text-secondary transition-colors shrink-0">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <!-- Contacto -->
+        <div class="p-4 border-b border-border-color flex flex-col gap-2">
+          <p class="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Contacto</p>
+          @if (c.telefono) {
+            <div class="flex items-center gap-2 text-sm text-text-main">
+              <span class="material-symbols-outlined text-[16px] text-text-secondary">phone</span>{{ c.telefono }}
+            </div>
+          }
+          @if (c.email) {
+            <div class="flex items-center gap-2 text-sm text-text-main">
+              <span class="material-symbols-outlined text-[16px] text-text-secondary">mail</span>{{ c.email }}
+            </div>
+          }
+          @if (c.direccion) {
+            <div class="flex items-start gap-2 text-sm text-text-main">
+              <span class="material-symbols-outlined text-[16px] text-text-secondary mt-0.5">location_on</span>{{ c.direccion }}
+            </div>
+          }
+          @if (!c.telefono && !c.email && !c.direccion) {
+            <p class="text-xs text-text-secondary italic">Sin datos de contacto</p>
+          }
+        </div>
+
+        <!-- Resumen -->
+        <div class="p-4 border-b border-border-color">
+          <p class="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-3">Resumen financiero</p>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-background-light rounded-lg p-3 text-center">
+              <div class="text-base font-bold text-text-main">{{ formatSol(totalHistorial()) }}</div>
+              <div class="text-xs text-text-secondary">Total compras</div>
+            </div>
+            <div class="bg-background-light rounded-lg p-3 text-center">
+              <div class="text-base font-bold text-text-main">{{ historial().length }}</div>
+              <div class="text-xs text-text-secondary">Visitas</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Historial -->
+        <div class="flex-1 overflow-y-auto">
+          <p class="px-4 pt-4 pb-2 text-[10px] font-bold text-text-secondary uppercase tracking-wider">Últimas compras</p>
+          @if (cargandoHistorial()) {
+            <div class="px-4 flex flex-col gap-2">
+              @for (s of [1,2,3]; track s) { <div class="fs-skeleton h-12 w-full rounded-lg"></div> }
+            </div>
+          } @else {
+            <div class="flex flex-col divide-y divide-border-color">
+              @for (v of historial(); track v.id) {
+                <div class="px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <div class="font-mono text-xs text-primary font-bold">{{ v.comprobante }}</div>
+                      <div class="text-xs text-text-secondary mt-0.5">{{ v.fecha }} · {{ v.items }} ítem(s)</div>
+                      <div class="text-xs text-text-secondary">{{ v.metodoPago }}</div>
+                    </div>
+                    <div class="text-sm font-bold text-text-main shrink-0">{{ formatSol(v.total) }}</div>
+                  </div>
+                </div>
+              } @empty {
+                <div class="px-4 py-8 text-center">
+                  <span class="material-symbols-outlined text-[28px] text-text-secondary/40">receipt_long</span>
+                  <p class="text-sm text-text-secondary mt-1">Sin compras registradas</p>
+                  <p class="text-xs text-text-secondary/70 mt-0.5">Aparecerán aquí cuando compre con su documento</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Acciones -->
+        <div class="p-3 border-t border-border-color bg-gray-50 flex gap-2">
+          <button (click)="abrirModalEditar(c)"
+                  class="flex-1 h-9 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold transition-colors">
+            Editar cliente
+          </button>
+          <button (click)="toggleEstado(c)"
+                  class="h-9 px-3 border border-border-color bg-white hover:bg-gray-50 text-text-secondary rounded-lg transition-colors"
+                  [title]="c.estado === 'activo' ? 'Desactivar' : 'Activar'">
+            <span class="material-symbols-outlined text-[18px]">
+              {{ c.estado === 'activo' ? 'person_off' : 'person_check' }}
+            </span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="h-6"></div>
+</div>
+
+
+<!-- ══════════════════════ MODAL NUEVO / EDITAR CLIENTE ══════════════════════ -->
+@if (mostrarModal()) {
+  <div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarModal()"
+       role="dialog" aria-modal="true">
+
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col"
+         (click)="$event.stopPropagation()">
+
+      <!-- Cabecera -->
+      <div class="px-6 py-4 border-b border-border-color flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            <span class="material-symbols-outlined icon-fill">
+              {{ modoModal() === 'crear' ? 'person_add' : 'edit' }}
+            </span>
+          </div>
+          <div>
+            <h3 class="font-black text-lg text-text-main">
+              {{ modoModal() === 'crear' ? 'Nuevo cliente' : 'Editar cliente' }}
+            </h3>
+            <p class="text-xs text-text-secondary">
+              {{ modoModal() === 'crear'
+                  ? 'Registra un cliente en el padrón'
+                  : 'Actualiza los datos del cliente' }}
+            </p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarModal()"
+                class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors"
+                aria-label="Cerrar">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <!-- Cuerpo: formulario -->
+      <div class="px-6 py-5 overflow-y-auto flex-1">
+        <form (submit)="guardar(); $event.preventDefault()" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- Tipo de documento -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Tipo de documento <span class="text-accent-red-ink">*</span>
+            </label>
+            <select [ngModel]="formTipoDoc()" (ngModelChange)="formTipoDoc.set($event)" name="tipoDoc"
+                    class="block w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all">
+              @for (t of tiposDoc; track t.valor) {
+                <option [value]="t.valor">{{ t.label }}</option>
+              }
+            </select>
+          </div>
+
+          <!-- Número de documento -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Número <span class="text-accent-red-ink">*</span>
+              @if (tipoSeleccionado().longitud) {
+                <span class="font-normal normal-case text-text-secondary/70">
+                  ({{ tipoSeleccionado().longitud }} dígitos)
+                </span>
+              }
+            </label>
+            <input type="text" name="numDoc"
+                   [placeholder]="tipoSeleccionado().longitud
+                      ? ('Ej. ' + (formTipoDoc() === 'DNI' ? '12345678' : '20512345678'))
+                      : 'Ingresa el número'"
+                   [ngModel]="formNumDoc()" (ngModelChange)="formNumDoc.set($event)"
+                   class="block w-full h-10 px-3 bg-background-light border rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+                   [class.border-accent-red]="errorNumDoc()"
+                   [class.border-border-color]="!errorNumDoc()"
+                   [class.focus:border-primary/40]="!errorNumDoc()"/>
+            @if (errorNumDoc()) {
+              <p class="text-[11px] text-accent-red-ink font-semibold mt-1 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">error</span>{{ errorNumDoc() }}
+              </p>
+            }
+          </div>
+
+          <!-- Nombres o Razón social -->
+          @if (formTipoDoc() === 'RUC') {
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Razón social <span class="text-accent-red-ink">*</span>
+              </label>
+              <input type="text" name="razonSocial"
+                     placeholder="Ej. Clínica San Pablo S.A.C."
+                     [ngModel]="formRazonSocial()" (ngModelChange)="formRazonSocial.set($event)"
+                     class="block w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Contacto principal
+              </label>
+              <input type="text" name="nombres"
+                     placeholder="Nombre de la persona de contacto"
+                     [ngModel]="formNombres()" (ngModelChange)="formNombres.set($event)"
+                     class="block w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+            <div></div>
+          } @else {
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Nombres <span class="text-accent-red-ink">*</span>
+              </label>
+              <input type="text" name="nombres" placeholder="Carlos Alberto"
+                     [ngModel]="formNombres()" (ngModelChange)="formNombres.set($event)"
+                     class="block w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+                Apellidos
+              </label>
+              <input type="text" name="apellidos" placeholder="Rodriguez Pérez"
+                     [ngModel]="formApellidos()" (ngModelChange)="formApellidos.set($event)"
+                     class="block w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+          }
+
+          <!-- Teléfono -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Teléfono
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="material-symbols-outlined text-text-secondary text-[18px]">phone</span>
+              </div>
+              <input type="text" name="telefono" placeholder="987 654 321"
+                     [ngModel]="formTelefono()" (ngModelChange)="formTelefono.set($event)"
+                     class="block w-full h-10 pl-10 pr-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Email
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="material-symbols-outlined text-text-secondary text-[18px]">mail</span>
+              </div>
+              <input type="email" name="email" placeholder="cliente@email.com"
+                     [ngModel]="formEmail()" (ngModelChange)="formEmail.set($event)"
+                     class="block w-full h-10 pl-10 pr-3 bg-background-light border rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+                     [class.border-accent-red]="errorEmail()"
+                     [class.border-border-color]="!errorEmail()"
+                     [class.focus:border-primary/40]="!errorEmail()"/>
+            </div>
+            @if (errorEmail()) {
+              <p class="text-[11px] text-accent-red-ink font-semibold mt-1 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">error</span>{{ errorEmail() }}
+              </p>
+            }
+          </div>
+
+          <!-- Dirección -->
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+              Dirección
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="material-symbols-outlined text-text-secondary text-[18px]">location_on</span>
+              </div>
+              <input type="text" name="direccion" placeholder="Av. Arequipa 1234, Miraflores"
+                     [ngModel]="formDireccion()" (ngModelChange)="formDireccion.set($event)"
+                     class="block w-full h-10 pl-10 pr-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/40 transition-all"/>
+            </div>
+          </div>
+
+          <!-- Aviso de campos requeridos -->
+          <div class="md:col-span-2">
+            <p class="text-[11px] text-text-secondary italic">
+              <span class="text-accent-red-ink">*</span> Campos requeridos.
+            </p>
+          </div>
+        </form>
+      </div>
+
+      <!-- Pie -->
+      <div class="px-6 py-4 border-t border-border-color bg-gray-50 flex items-center justify-end gap-2 rounded-b-2xl">
+        <button type="button" (click)="cerrarModal()"
+                class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-background-light transition-colors">
+          Cancelar
+        </button>
+        <button type="button" (click)="guardar()"
+                [disabled]="!formularioValido()"
+                class="h-10 px-5 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">save</span>
+          {{ modoModal() === 'crear' ? 'Registrar cliente' : 'Guardar cambios' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

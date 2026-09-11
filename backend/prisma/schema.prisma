@@ -1,0 +1,808 @@
+// FarmaSys — Esquema de base de datos (PostgreSQL)
+// Copyright (c) 2026 Axel Huatuco Bravo <axelhdev@gmail.com>
+// Todos los derechos reservados. Código propietario — ver LICENSE.
+// Publicado para lectura y evaluación profesional. Prohibido el uso comercial,
+// la redistribución y las obras derivadas sin autorización escrita.
+//
+// Reglas: dinero en Decimal(10,2) NUNCA float; soft-delete con `activo`;
+// stock en unidad base (entera); fechas en UTC (la app convierte a America/Lima).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── ENUMS ───────────────────────────
+enum Rol {
+  SUPER_ADMIN
+  ADMIN
+  VENDEDOR
+  FARMACEUTICO
+  ALMACENERO
+}
+
+enum EstadoSucursal {
+  ACTIVA
+  EN_MANTENIMIENTO
+  INACTIVA
+}
+
+enum TipoComprobante {
+  BOLETA
+  FACTURA
+  TICKET
+}
+
+enum EstadoVenta {
+  COMPLETADA
+  ANULADA
+  PENDIENTE
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  YAPE_PLIN
+  TRANSFERENCIA
+  MIXTO
+}
+
+enum CategoriaGasto {
+  ALQUILER
+  SUELDOS
+  SERVICIOS      // luz, agua, internet, teléfono
+  MERCADERIA     // compras menores no registradas como compra formal
+  MARKETING
+  MANTENIMIENTO
+  IMPUESTOS
+  TRANSPORTE
+  OTROS
+}
+
+enum TipoMovimientoStock {
+  VENTA
+  COMPRA
+  AJUSTE
+  TRASLADO_SALIDA
+  TRASLADO_INGRESO
+  BAJA_VENCIMIENTO
+  MERMA
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+enum CategoriaMovimientoCaja {
+  APORTE_SENCILLO
+  AJUSTE_INGRESO
+  RETIRO
+  PAGO_PROVEEDOR
+  GASTO
+  VUELTO
+  DEVOLUCION
+}
+
+// Afectación IGV (Perú): gravado 18%, exonerado o inafecto
+enum TipoAfectacionIgv {
+  GRAVADO
+  EXONERADO
+  INAFECTO
+}
+
+// Estado del comprobante electrónico frente a SUNAT (vía PSE/OSE).
+enum EstadoComprobante {
+  PENDIENTE // generado, aún no enviado
+  ENVIADO   // enviado al PSE/OSE, esperando CDR
+  ACEPTADO  // aceptado por SUNAT (CDR conforme)
+  RECHAZADO // rechazado por SUNAT
+  ANULADO   // dado de baja / nota de crédito emitida
+}
+
+enum TipoComprobanteElectronico {
+  BOLETA
+  FACTURA
+  NOTA_CREDITO
+}
+
+// ─────────────────────────── MODELOS ───────────────────────────
+
+model Sucursal {
+  id              String         @id @default(cuid())
+  nombre          String
+  distrito        String?
+  direccion       String?
+  telefono        String?
+  estado          EstadoSucursal @default(ACTIVA)
+  qrYape          String?
+  qrPlin          String?
+  serieBoleta     String         @default("B001")
+  serieFactura    String         @default("F001")
+  // TICKET interno con serie y correlativo PROPIOS: no debe quemar números
+  // de boleta (los correlativos de comprobantes legales son intocables).
+  serieTicket     String         @default("T001")
+  siguienteBoleta Int            @default(1)
+  siguienteFactura Int           @default(1)
+  siguienteTicket  Int           @default(1)
+  responsableId   String?
+  responsable     Usuario?       @relation("ResponsableSucursal", fields: [responsableId], references: [id])
+  // ── Campos preparados para features futuras (mapa, horario, metas) ──
+  email            String?
+  latitud          Float?
+  longitud         Float?
+  horarioApertura  String?       // "08:00"
+  horarioCierre    String?       // "22:00"
+  metaVentaMensual Decimal?      @db.Decimal(10, 2)
+  creadoEn        DateTime       @default(now())
+
+  usuarios     Usuario[]         @relation("UsuariosSucursal")
+  stock        StockSucursal[]
+  lotes        Lote[]
+  movimientos  MovimientoStock[]
+  ventas       Venta[]
+  cajas        CajaSesion[]
+  compras      Compra[]
+  gastos       Gasto[]
+  gastosFijos  GastoRecurrente[]
+  devoluciones Devolucion[]
+  transfEnviadas  Transferencia[] @relation("TransfOrigen")
+  transfRecibidas Transferencia[] @relation("TransfDestino")
+  conteos         ConteoInventario[]
+  terminales      Terminal[]
+}
+
+model Usuario {
+  id             String    @id @default(cuid())
+  nombres        String
+  apellidos      String
+  email          String    @unique
+  dni            String?   @unique
+  passwordHash   String
+  telefono       String?
+  roles          Rol[]
+  // Accesos por módulo a nivel de USUARIO. El rol es solo la plantilla inicial;
+  // esta lista es la verdad. Vacío = usar la plantilla del rol (compatibilidad
+  // con usuarios creados antes de este campo; no se migran datos).
+  permisos       String[]  @default([])
+  sucursalId     String?
+  sucursal       Sucursal? @relation("UsuariosSucursal", fields: [sucursalId], references: [id])
+  activo         Boolean   @default(true)
+  // Obliga a cambiar la contraseña en el próximo login. Se activa al crear un
+  // usuario y cuando un admin le resetea la clave; se apaga cuando el propio
+  // usuario la cambia desde Mi Perfil.
+  debeCambiarPassword Boolean @default(false)
+  ultimoAccesoEn DateTime?
+  creadoEn       DateTime  @default(now())
+
+  ventas           Venta[]     @relation("VentasCajero")
+  ventasAnuladas   Venta[]     @relation("VentasAnuladas")
+  cajas            CajaSesion[]
+  cajasCerradas    CajaSesion[] @relation("CajasCerradas")
+  movimientosCajaRegistrados MovimientoCaja[] @relation("MovimientosCajaRegistrados")
+  comprasAnuladas  Compra[]     @relation("ComprasAnuladas")
+  compras          Compra[]
+  sucursalesACargo Sucursal[]  @relation("ResponsableSucursal")
+  gastosRegistrados Gasto[]
+  devolucionesRegistradas Devolucion[]
+  transferenciasRegistradas Transferencia[]
+  conteosRegistrados ConteoInventario[]
+  accesos          RegistroAcceso[]
+  cambiosConfig    CambioConfiguracion[]
+  movimientosStock MovimientoStock[]
+
+  // FK para filtrar usuarios por sucursal; activo para listados de cuentas vigentes.
+  @@index([sucursalId])
+  @@index([activo])
+}
+
+// ─────────────────────── AUDITORÍA DE ACCESOS ───────────────────────
+// Quién entró al sistema, cuándo y desde dónde — incluidos los INTENTOS
+// FALLIDOS.
+//
+// Antes el único rastro era `Usuario.ultimoAccesoEn`, que se sobrescribe en
+// cada login: si faltaba plata en un arqueo, no había forma de saber quién
+// estuvo dentro. Todo el control de caja se construyó para que no haya
+// movimientos raros, pero el acceso en sí no dejaba huella.
+//
+// Se guarda el email tal como se escribió (no solo el usuarioId) para poder
+// investigar intentos contra cuentas que no existen.
+model RegistroAcceso {
+  id         String   @id @default(cuid())
+  // Null cuando el email no corresponde a ningún usuario (intento a ciegas).
+  usuarioId  String?
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id])
+  email      String
+  exito      Boolean
+  // CREDENCIALES | USUARIO_INACTIVO | NO_EXISTE (solo en fallos).
+  motivo     String?
+  ip         String?
+  userAgent  String?
+  fecha      DateTime @default(now())
+
+  // Consultas típicas: histórico de un usuario, y "fallos recientes" para
+  // detectar a alguien probando contraseñas.
+  @@index([usuarioId, fecha])
+  @@index([fecha])
+  @@index([exito, fecha])
+}
+
+model Producto {
+  id               String            @id @default(cuid())
+  codigo           String            @unique
+  nombre           String
+  principioActivo  String?
+  concentracion    String?
+  // Forma farmacéutica: tableta, jarabe, ampolla, crema… Es distinta de
+  // `unidadBase` (que gobierna el fraccionamiento en el POS): esta describe
+  // QUÉ ES el medicamento. Sin ella, "Cetirizina 10mg tableta" y
+  // "Cetirizina 5mg/5mL jarabe" se confunden en el buscador del mostrador.
+  // Opcional: los productos cargados antes de este campo siguen válidos.
+  formaFarmaceutica String?
+  categoria        String
+  laboratorio      String?
+  ubicacion        String?
+  registroSanitario String?
+  esGenerico       Boolean           @default(false)
+  requiereReceta   Boolean           @default(false)
+  controlado       Boolean           @default(false)
+  afectacionIgv    TipoAfectacionIgv @default(GRAVADO)
+  unidadBase       String            @default("unidad")
+  // Stock mínimo sugerido para ESTE producto. Al crear la fila de stock de una
+  // sucursal se usa como valor inicial; si es 0, se cae al
+  // Configuracion.stockMinimoDefault. Sin esto, toda fila nacía en 0 y las
+  // alertas de stock bajo (que exigen minimo > 0) no se disparaban NUNCA.
+  stockMinimo      Int               @default(0)
+  activo           Boolean           @default(true)
+  creadoEn         DateTime          @default(now())
+
+  presentaciones Presentacion[]
+  stock          StockSucursal[]
+  lotes          Lote[]
+  movimientos    MovimientoStock[]
+  ventaItems     VentaItem[]
+  compraItems    CompraItem[]
+  transferenciaItems TransferenciaItem[]
+
+  // Índices de catálogo (filtros y orden frecuentes en el POS).
+  // NOTA: la búsqueda por texto (nombre/principioActivo con ILIKE '%x%') NO usa
+  // estos B-tree; para eso crear índices GIN pg_trgm vía migración SQL manual:
+  //   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  //   CREATE INDEX idx_producto_nombre_trgm ON "Producto" USING gin (nombre gin_trgm_ops);
+  //   CREATE INDEX idx_producto_pa_trgm ON "Producto" USING gin ("principioActivo" gin_trgm_ops);
+  @@index([categoria])
+  @@index([principioActivo])
+  @@index([activo])
+  @@index([nombre])
+}
+
+model Presentacion {
+  id           String   @id @default(cuid())
+  productoId   String
+  producto     Producto @relation(fields: [productoId], references: [id])
+  nombre       String
+  factor       Int // cuántas unidades base contiene
+  precioVenta  Decimal  @db.Decimal(10, 2)
+  codigoBarras String?
+  esBase       Boolean  @default(false)
+
+  ventaItems VentaItem[]
+
+  // FK para traer presentaciones de un producto; código de barras para el scanner.
+  @@index([productoId])
+  @@index([codigoBarras])
+}
+
+model StockSucursal {
+  productoId  String
+  sucursalId  String
+  producto    Producto @relation(fields: [productoId], references: [id])
+  sucursal    Sucursal @relation(fields: [sucursalId], references: [id])
+  cantidadBase Int     @default(0)
+  stockMinimo Int      @default(0)
+  // Costo promedio ponderado por unidad base (se recalcula en cada compra).
+  // Base para el cálculo de margen en Finanzas. Decimal nunca float.
+  costoPromedio Decimal? @db.Decimal(10, 2)
+  actualizadoEn DateTime @updatedAt
+
+  @@id([productoId, sucursalId])
+  // La PK cubre búsquedas por producto; este índice cubre "todo el stock de una
+  // sucursal" y los reportes de alertas de stock bajo por sucursal.
+  @@index([sucursalId])
+}
+
+model Lote {
+  id           String   @id @default(cuid())
+  productoId   String
+  sucursalId   String
+  producto     Producto @relation(fields: [productoId], references: [id])
+  sucursal     Sucursal @relation(fields: [sucursalId], references: [id])
+  lote         String
+  vencimiento  DateTime @db.Date
+  cantidadBase Int      @default(0)
+  creadoEn     DateTime @default(now())
+
+  @@index([productoId, sucursalId, vencimiento])
+}
+
+model MovimientoStock {
+  id           String              @id @default(cuid())
+  productoId   String
+  sucursalId   String
+  producto     Producto            @relation(fields: [productoId], references: [id])
+  sucursal     Sucursal            @relation(fields: [sucursalId], references: [id])
+  tipo         TipoMovimientoStock
+  cantidadBase Int // negativo = salida
+  motivo       String?
+  referenciaId String?
+  loteId       String? // lote afectado (trazabilidad FEFO / baja por vencimiento)
+  // Quién lo hizo. Opcional porque los movimientos anteriores a este campo no
+  // lo tienen, y porque algún proceso automático podría no tener usuario.
+  // Sin esto, un ajuste manual que hacía desaparecer mercadería no dejaba a
+  // quién preguntar: el kardex decía "AJUSTE -40, motivo: corrección" y nada más.
+  registradoPor String?
+  usuario      Usuario?            @relation(fields: [registradoPor], references: [id])
+  fecha        DateTime            @default(now())
+
+  // Kardex por producto/sucursal ordenado por fecha; referenciaId para rastrear
+  // el origen (venta, compra) de un movimiento.
+  @@index([productoId, sucursalId, fecha])
+  @@index([referenciaId])
+  @@index([registradoPor, fecha])
+}
+
+model Cliente {
+  id              String   @id @default(cuid())
+  tipoDocumento   String // DNI | RUC | CE
+  numeroDocumento String
+  nombres         String
+  apellidos       String?
+  razonSocial     String?
+  telefono        String?
+  email           String?
+  direccion       String?
+  puntos          Int      @default(0)
+  creadoEn        DateTime @default(now())
+
+  ventas Venta[]
+
+  @@unique([tipoDocumento, numeroDocumento])
+  // Búsqueda rápida del cliente por número de documento en el POS.
+  @@index([numeroDocumento])
+}
+
+model Venta {
+  id                String          @id @default(cuid())
+  numeroComprobante String          @unique
+  tipoComprobante   TipoComprobante
+  sucursalId        String
+  sucursal          Sucursal        @relation(fields: [sucursalId], references: [id])
+  cajeroId          String
+  cajero            Usuario         @relation("VentasCajero", fields: [cajeroId], references: [id])
+  cajaSesionId      String?
+  cajaSesion        CajaSesion?     @relation(fields: [cajaSesionId], references: [id])
+  clienteId         String?
+  cliente           Cliente?        @relation(fields: [clienteId], references: [id])
+  subtotal          Decimal         @db.Decimal(10, 2)
+  igv               Decimal         @db.Decimal(10, 2)
+  descuento         Decimal         @default(0) @db.Decimal(10, 2)
+  total             Decimal         @db.Decimal(10, 2)
+  estado            EstadoVenta     @default(COMPLETADA)
+  motivoAnulacion   String?
+  anuladaEn         DateTime?
+  // Auditoría: usuario que anuló la venta (tomado del JWT en el backend).
+  anuladaPorId      String?
+  anuladaPor        Usuario?        @relation("VentasAnuladas", fields: [anuladaPorId], references: [id])
+  // Clave de idempotencia del cobro: evita ventas duplicadas ante reintentos.
+  idempotencyKey    String?         @unique
+  fecha             DateTime        @default(now())
+
+  items       VentaItem[]
+  pagos       Pago[]
+  devoluciones Devolucion[]
+
+  // Reportes de ventas por sucursal/fecha; cierre de caja por sesión; histórico
+  // por cajero y por cliente.
+  @@index([sucursalId, fecha])
+  @@index([cajaSesionId])
+  @@index([cajeroId])
+  @@index([clienteId])
+}
+
+model VentaItem {
+  id             String        @id @default(cuid())
+  ventaId        String
+  venta          Venta         @relation(fields: [ventaId], references: [id])
+  productoId     String
+  producto       Producto      @relation(fields: [productoId], references: [id])
+  presentacionId String?
+  presentacion   Presentacion? @relation(fields: [presentacionId], references: [id])
+  loteId         String?
+  cantidad       Int // cuántas unidades de la presentación
+  cantidadBase   Int // unidades base descontadas
+  precioUnitario Decimal       @db.Decimal(10, 2)
+  subtotal       Decimal       @db.Decimal(10, 2)
+  // Costo promedio ponderado por unidad base CONGELADO al momento de vender.
+  // Sin esto, el margen histórico se recalcula con el costo de hoy: si el
+  // proveedor sube precios, las ventas del año pasado "pierden" margen solas.
+  // Opcional: las ventas anteriores a este campo caen al costo actual.
+  costoUnitario  Decimal?      @db.Decimal(10, 2)
+
+  // Detalle por venta; reportes de productos más vendidos.
+  @@index([ventaId])
+  @@index([productoId])
+}
+
+// Soporta pago mixto: varias filas por venta
+model Pago {
+  id         String     @id @default(cuid())
+  ventaId    String
+  venta      Venta      @relation(fields: [ventaId], references: [id])
+  metodo     MetodoPago
+  monto      Decimal    @db.Decimal(10, 2)
+  referencia String? // celular / cód. operación Yape, voucher tarjeta
+
+  // Pagos de una venta (desglose mixto) y agregados por método para arqueo.
+  @@index([ventaId])
+}
+
+model CajaSesion {
+  id               String    @id @default(cuid())
+  sucursalId       String
+  sucursal         Sucursal  @relation(fields: [sucursalId], references: [id])
+  cajeroId         String
+  cajero           Usuario   @relation(fields: [cajeroId], references: [id])
+  terminal         String
+  montoInicial     Decimal   @db.Decimal(10, 2)
+  aperturaEn       DateTime  @default(now())
+  estado           String    @default("ABIERTA") // ABIERTA | CERRADA
+  efectivoEsperado Decimal?  @db.Decimal(10, 2)
+  efectivoContado  Decimal?  @db.Decimal(10, 2)
+  diferencia       Decimal?  @db.Decimal(10, 2)
+  cerradaEn        DateTime?
+  // Auditoría del cierre: QUIÉN cerró. Normalmente es el propio cajero, pero
+  // un ADMIN puede forzar el cierre de una caja olvidada — y eso debe constar.
+  cerradaPorId     String?
+  cerradaPor       Usuario?  @relation("CajasCerradas", fields: [cerradaPorId], references: [id])
+  motivoDescuadre  String?
+
+  ventas      Venta[]
+  movimientos MovimientoCaja[]
+
+  // Búsqueda de la caja ABIERTA por sucursal/cajero (1 abierta a la vez).
+  @@index([sucursalId, estado])
+  @@index([cajeroId, estado])
+  // Regla "un cajón físico = una sesión": buscar si el terminal ya está ocupado
+  // y traer el último cierre del terminal para el relevo de turno.
+  @@index([sucursalId, terminal, estado])
+}
+
+// Terminal = cajón físico / punto de cobro de una botica (CAJA-01, CAJA-02…).
+//
+// Se cataloga para que la apertura no dependa de texto libre (los typos crean
+// "terminales fantasma" y rompen el arqueo por caja). CajaSesion.terminal sigue
+// guardando el NOMBRE como string: el histórico no se migra, solo se validan
+// las aperturas nuevas contra este catálogo.
+model Terminal {
+  id         String   @id @default(cuid())
+  sucursalId String
+  sucursal   Sucursal @relation(fields: [sucursalId], references: [id])
+  nombre     String
+  activo     Boolean  @default(true)
+  creadoEn   DateTime @default(now())
+
+  @@unique([sucursalId, nombre])
+  @@index([sucursalId, activo])
+}
+
+model MovimientoCaja {
+  id           String                  @id @default(cuid())
+  cajaSesionId String
+  cajaSesion   CajaSesion              @relation(fields: [cajaSesionId], references: [id])
+  tipo         TipoMovimientoCaja
+  categoria    CategoriaMovimientoCaja
+  monto        Decimal                 @db.Decimal(10, 2)
+  motivo       String
+  fecha        DateTime                @default(now())
+  // Auditoría: QUIÉN registró el movimiento (del JWT, no del body). Sin esto,
+  // un retiro de efectivo no tiene responsable.
+  registradoPorId String?
+  registradoPor   Usuario?             @relation("MovimientosCajaRegistrados", fields: [registradoPorId], references: [id])
+
+  // Movimientos de una sesión de caja para el cierre/arqueo.
+  @@index([cajaSesionId])
+}
+
+// ─────────────────────── COMPRAS / PROVEEDORES ───────────────────────
+
+model Proveedor {
+  id              String   @id @default(cuid())
+  ruc             String   @unique
+  razonSocial     String
+  nombreComercial String?
+  telefono        String?
+  email           String?
+  direccion       String?
+  activo          Boolean  @default(true)
+  creadoEn        DateTime @default(now())
+
+  compras Compra[]
+
+  @@index([razonSocial])
+}
+
+model Compra {
+  id              String    @id @default(cuid())
+  numeroDocumento String // n.º de factura/boleta del proveedor
+  tipoDocumento   String    @default("FACTURA")
+  proveedorId     String
+  proveedor       Proveedor @relation(fields: [proveedorId], references: [id])
+  sucursalId      String
+  sucursal        Sucursal  @relation(fields: [sucursalId], references: [id])
+  usuarioId       String
+  usuario         Usuario   @relation(fields: [usuarioId], references: [id])
+  subtotal        Decimal   @db.Decimal(10, 2)
+  igv             Decimal   @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  fecha           DateTime  @default(now())
+  // Anulación (reversa de mercadería mal ingresada). Soft: la compra no se
+  // borra, queda con su motivo y autor para auditoría.
+  estado          String    @default("REGISTRADA") // REGISTRADA | ANULADA
+  motivoAnulacion String?
+  anuladaEn       DateTime?
+  anuladaPorId    String?
+  anuladaPor      Usuario?  @relation("ComprasAnuladas", fields: [anuladaPorId], references: [id])
+
+  items CompraItem[]
+
+  @@index([sucursalId, fecha])
+  @@index([proveedorId])
+  // Una misma factura de un proveedor no puede registrarse dos veces (el error
+  // más caro de compras: duplica stock y ensucia el costo promedio).
+  @@unique([proveedorId, numeroDocumento])
+}
+
+// ─────────────────────── COMPROBANTES ELECTRÓNICOS (SUNAT) ───────────────────────
+
+model ComprobanteElectronico {
+  id             String                     @id @default(cuid())
+  ventaId        String                     @unique
+  tipo           TipoComprobanteElectronico
+  serie          String
+  numero         Int
+  estado         EstadoComprobante          @default(PENDIENTE)
+  hash           String? // hash del XML firmado
+  xml            String? // XML UBL 2.1 generado (o ruta de almacenamiento)
+  cdr            String? // Constancia de Recepción (CDR) devuelta por SUNAT
+  ticketSunat    String? // ticket de proceso asíncrono del PSE/OSE
+  observaciones  String? // motivo de rechazo / notas
+  notaCreditoDe  String? // id del comprobante que esta nota anula (si aplica)
+  enviadoEn      DateTime?
+  aceptadoEn     DateTime?
+  creadoEn       DateTime                   @default(now())
+
+  @@unique([serie, numero, tipo])
+  @@index([estado])
+}
+
+model CompraItem {
+  id           String   @id @default(cuid())
+  compraId     String
+  compra       Compra   @relation(fields: [compraId], references: [id])
+  productoId   String
+  producto     Producto @relation(fields: [productoId], references: [id])
+  loteId       String? // lote creado por este ingreso
+  lote         String // código de lote del fabricante
+  vencimiento  DateTime @db.Date
+  cantidadBase Int // unidades base ingresadas
+  precioCompra Decimal  @db.Decimal(10, 2) // costo unitario base (sin IGV)
+  subtotal     Decimal  @db.Decimal(10, 2)
+
+  @@index([compraId])
+  @@index([productoId])
+}
+
+// ─────────────────────── CONFIGURACIÓN GLOBAL ───────────────────────
+// Fila única (id fijo "global"): identidad fiscal de la empresa emisora +
+// parámetros globales que alimentan el comprobante y el sistema.
+
+model Configuracion {
+  id                     String   @id @default("global")
+  razonSocial            String   @default("Mi Botica S.A.C.")
+  ruc                    String   @default("")
+  direccionFiscal        String   @default("")
+  telefono               String   @default("")
+  email                  String   @default("")
+  directorTecnico        String   @default("")
+  colegiatura            String   @default("")
+  registroSanitario      String   @default("")
+  licenciaFuncionamiento String   @default("")
+  igvPorcentaje          Decimal  @default(18) @db.Decimal(5, 2)
+  moneda                 String   @default("PEN")
+  simbolo                String   @default("S/")
+  pieTicket              String   @default("¡Gracias por su compra! Conserve su comprobante.")
+  logoUrl                String   @default("")
+  logoEnTicket           Boolean  @default(true)
+  tipoImpresion          String   @default("termica80")
+  alertaVencimientoDias  Int      @default(30)
+  stockMinimoDefault     Int      @default(5)
+  // Diferencia de efectivo (S/) a partir de la cual el cierre EXIGE un motivo.
+  // Configurable por botica: lo que en Lima es tolerable, en una botica chica no.
+  umbralDescuadreCaja    Decimal  @default(20) @db.Decimal(10, 2)
+  actualizadoEn          DateTime @updatedAt @default(now())
+}
+
+// Bitácora de cambios de configuración: quién tocó qué y con qué valor.
+//
+// Por qué existe: `umbralDescuadreCaja` es el ajuste más abusable del sistema
+// — subirlo de 20 a 900 significa que ningún cajero vuelve a justificar un
+// faltante. Con solo `actualizadoEn` no se sabía ni quién lo cambió ni qué
+// valor tenía antes, así que un descuadre era imposible de reconstruir.
+// Una fila por CAMPO modificado (no por guardado), para poder filtrar
+// "todos los cambios de IGV" sin abrir cada registro.
+model CambioConfiguracion {
+  id        String   @id @default(cuid())
+  usuarioId String?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+  // Se guarda el email además del id: si el usuario se borra, el rastro queda.
+  email     String
+  campo     String
+  anterior  String
+  nuevo     String
+  fecha     DateTime @default(now())
+
+  @@index([fecha])
+  @@index([campo, fecha])
+}
+
+// ─────────────────────── GASTOS / EGRESOS ───────────────────────
+// Gastos operativos de la botica (alquiler, sueldos, servicios, etc.).
+// Permiten calcular la utilidad NETA y el estado de resultados real.
+
+model Gasto {
+  id            String         @id @default(cuid())
+  sucursalId    String
+  sucursal      Sucursal       @relation(fields: [sucursalId], references: [id])
+  categoria     CategoriaGasto
+  descripcion   String
+  monto         Decimal        @db.Decimal(10, 2)
+  fecha         DateTime       @default(now())
+  registradoPor String?
+  usuario       Usuario?       @relation(fields: [registradoPor], references: [id])
+  // Si nació de un gasto fijo, queda enlazado: así se sabe qué meses ya se
+  // generaron y no se duplica el alquiler dos veces en el mismo mes.
+  recurrenteId  String?
+  recurrente    GastoRecurrente? @relation(fields: [recurrenteId], references: [id], onDelete: SetNull)
+  // Mes al que corresponde (primer día, hora local). Solo para los generados.
+  periodo       DateTime?
+  creadoEn      DateTime       @default(now())
+
+  @@index([sucursalId, fecha])
+  @@index([categoria])
+  @@unique([recurrenteId, periodo])
+}
+
+// Gastos fijos que se repiten todos los meses (alquiler, sueldos, internet).
+//
+// Por qué existe: antes había que acordarse de escribirlos cada mes. Si el
+// dueño se olvidaba del alquiler, la utilidad neta salía inflada y el P&L del
+// mes mentía sin que nadie lo notara.
+//
+// NO se crean solos en silencio: el sistema avisa cuáles faltan y el dueño
+// confirma. Un sistema que se inventa gastos por su cuenta no es de fiar.
+model GastoRecurrente {
+  id          String         @id @default(cuid())
+  sucursalId  String
+  sucursal    Sucursal       @relation(fields: [sucursalId], references: [id])
+  categoria   CategoriaGasto
+  descripcion String
+  monto       Decimal        @db.Decimal(10, 2)
+  // Día del mes en que se paga (1–28; 28 como tope para que exista en febrero).
+  diaDelMes   Int            @default(1)
+  activo      Boolean        @default(true)
+  creadoEn    DateTime       @default(now())
+  gastos      Gasto[]
+
+  @@index([sucursalId, activo])
+}
+
+// ─────────────────────── DEVOLUCIONES ───────────────────────
+// Devolución (parcial o total) de una venta. Reingresa stock y deja registro.
+// La nota de crédito electrónica (SUNAT) se emite aparte cuando se integre PSE.
+
+model Devolucion {
+  id            String   @id @default(cuid())
+  ventaId       String
+  venta         Venta    @relation(fields: [ventaId], references: [id])
+  sucursalId    String
+  sucursal      Sucursal @relation(fields: [sucursalId], references: [id])
+  motivo        String
+  monto         Decimal  @db.Decimal(10, 2)
+  registradoPor String?
+  usuario       Usuario? @relation(fields: [registradoPor], references: [id])
+  fecha         DateTime @default(now())
+
+  items DevolucionItem[]
+
+  @@index([ventaId])
+  @@index([sucursalId, fecha])
+}
+
+model DevolucionItem {
+  id           String     @id @default(cuid())
+  devolucionId String
+  devolucion   Devolucion @relation(fields: [devolucionId], references: [id])
+  ventaItemId  String
+  productoId   String
+  cantidad     Int
+  cantidadBase Int
+  subtotal     Decimal    @db.Decimal(10, 2)
+
+  @@index([devolucionId])
+}
+
+model Transferencia {
+  id            String    @id @default(cuid())
+  numero        String    @unique
+  origenId      String
+  origen        Sucursal  @relation("TransfOrigen", fields: [origenId], references: [id])
+  destinoId     String
+  destino       Sucursal  @relation("TransfDestino", fields: [destinoId], references: [id])
+  estado        String    @default("COMPLETADA") // directa; futuro: EN_TRANSITO/RECIBIDA
+  motivo        String?
+  registradoPor String?
+  usuario       Usuario?  @relation(fields: [registradoPor], references: [id])
+  fecha         DateTime  @default(now())
+
+  items TransferenciaItem[]
+
+  @@index([origenId, fecha])
+  @@index([destinoId, fecha])
+}
+
+model TransferenciaItem {
+  id              String        @id @default(cuid())
+  transferenciaId String
+  transferencia   Transferencia @relation(fields: [transferenciaId], references: [id])
+  productoId      String
+  producto        Producto      @relation(fields: [productoId], references: [id])
+  cantidadBase    Int
+
+  @@index([transferenciaId])
+}
+
+model ConteoInventario {
+  id            String    @id @default(cuid())
+  sucursalId    String
+  sucursal      Sucursal  @relation(fields: [sucursalId], references: [id])
+  estado        String    @default("EN_PROCESO") // EN_PROCESO | CERRADO
+  observacion   String?
+  registradoPor String?
+  usuario       Usuario?  @relation(fields: [registradoPor], references: [id])
+  iniciadoEn    DateTime  @default(now())
+  cerradoEn     DateTime?
+
+  items ConteoItem[]
+
+  @@index([sucursalId, estado])
+}
+
+model ConteoItem {
+  id              String           @id @default(cuid())
+  conteoId        String
+  conteo          ConteoInventario @relation(fields: [conteoId], references: [id])
+  loteId          String
+  productoId      String
+  productoNombre  String
+  loteNumero      String
+  vencimiento     DateTime         @db.Date
+  sistemaCantidad Int
+  contadaCantidad Int?
+
+  @@index([conteoId])
+}

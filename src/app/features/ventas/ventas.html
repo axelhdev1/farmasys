@@ -1,0 +1,558 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-6">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────── -->
+  <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Historial de Ventas</h2>
+      <p class="text-text-secondary text-sm mt-1">Registro de todas las ventas, boletas y facturas emitidas.</p>
+    </div>
+    <div class="flex gap-3 self-start md:self-auto">
+      <button (click)="exportarCSV()"
+              class="h-10 px-4 bg-white hover:bg-gray-50 text-text-main border border-border-color rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm active:scale-95">
+        <span class="material-symbols-outlined text-[18px] text-green-600">table_view</span>Exportar CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- ── KPIs del día ──────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Ventas Hoy</span>
+        <div class="p-1.5 bg-primary-50 text-primary rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">shopping_bag</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ kpis().totalVentas }}</span>
+      <span class="text-xs text-text-secondary font-medium">transacciones completadas</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Total Recaudado</span>
+        <div class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">payments</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ formatSol(kpis().totalHoy) }}</span>
+      <span class="text-xs text-accent-green-ink font-medium">en ventas del día</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-border-color flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Ticket Promedio</span>
+        <div class="p-1.5 bg-violet-50 text-violet-600 rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">receipt</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-text-main">{{ formatSol(kpis().ticketProm) }}</span>
+      <span class="text-xs text-text-secondary font-medium">por transacción</span>
+    </div>
+    <div class="bg-surface rounded-xl p-5 shadow-soft border border-red-100 flex flex-col gap-1">
+      <div class="flex items-center justify-between">
+        <span class="text-text-secondary text-sm font-medium">Anuladas Hoy</span>
+        <div class="p-1.5 bg-red-50 text-accent-red-ink rounded-lg">
+          <span class="material-symbols-outlined text-[20px]">cancel</span>
+        </div>
+      </div>
+      <span class="text-2xl font-bold text-accent-red-ink">{{ kpis().anuladas }}</span>
+      <span class="text-xs text-text-secondary font-medium">ventas anuladas</span>
+    </div>
+  </div>
+
+  <!-- ── Filtros ───────────────────────────────────────────────────── -->
+  <div class="bg-surface p-4 rounded-xl border border-border-color shadow-soft flex flex-col xl:flex-row gap-3">
+    <!-- Búsqueda -->
+    <div class="relative flex-1 min-w-[240px]">
+      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <span class="material-symbols-outlined text-text-secondary text-[20px]">search</span>
+      </div>
+      <input type="text"
+        [ngModel]="busqueda()" (ngModelChange)="onBusqueda($event)"
+        placeholder="Buscar por comprobante, cliente, documento o cajero..."
+        class="block w-full pl-10 pr-3 h-10 border border-border-color bg-background-light rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"/>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <!-- Estado (filtro de servidor) -->
+      <select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event); aplicarFiltroServidor()"
+        class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary/20 focus:border-primary">
+        <option value="todos">Todos los estados</option>
+        <option value="COMPLETADA">Completadas</option>
+        <option value="ANULADA">Anuladas</option>
+        <option value="PENDIENTE">Pendientes</option>
+      </select>
+      <!-- Método de pago (filtro de servidor) -->
+      <select [ngModel]="filtroMetodo()" (ngModelChange)="cambiarMetodo($event)"
+        class="h-10 pl-3 pr-8 border border-border-color bg-white rounded-lg text-sm font-medium text-text-main focus:ring-primary/20 focus:border-primary">
+        <option value="todos">Todos los métodos</option>
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="TARJETA">Tarjeta</option>
+        <option value="YAPE_PLIN">Yape / Plin</option>
+        <option value="TRANSFERENCIA">Transferencia</option>
+      </select>
+      <!-- Fechas (filtro de servidor) -->
+      <input type="date" [ngModel]="fechaDesde()" (ngModelChange)="fechaDesde.set($event); aplicarFiltroServidor()"
+        class="h-10 px-3 border border-border-color bg-white rounded-lg text-sm text-text-main focus:ring-primary/20 focus:border-primary"/>
+      <input type="date" [ngModel]="fechaHasta()" (ngModelChange)="fechaHasta.set($event); aplicarFiltroServidor()"
+        class="h-10 px-3 border border-border-color bg-white rounded-lg text-sm text-text-main focus:ring-primary/20 focus:border-primary"/>
+      <button (click)="limpiarFiltros()" [disabled]="!hayFiltros()"
+        class="h-10 px-4 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors border"
+        [class]="hayFiltros() ? 'bg-primary-50 text-primary border-primary-200 hover:bg-primary-100' : 'bg-white text-text-secondary border-border-color opacity-60 cursor-not-allowed'">
+        <span class="material-symbols-outlined text-[16px]">filter_list_off</span>Limpiar
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Tabla + Panel detalle ─────────────────────────────────────── -->
+  <div class="flex gap-6 items-start">
+
+    <!-- Tabla -->
+    <div class="flex-1 bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden min-w-0">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color">
+            <tr>
+              <th class="px-5 py-3">Comprobante</th>
+              <th class="px-5 py-3">
+                <button (click)="ordenarPor('fecha')" class="inline-flex items-center gap-1 hover:text-primary transition-colors uppercase">
+                  Fecha / Hora
+                  <span class="material-symbols-outlined text-[15px] transition-opacity"
+                        [class.opacity-30]="orden() !== 'fecha_asc' && orden() !== 'fecha_desc'">
+                    {{ orden() === 'fecha_asc' ? 'arrow_upward' : 'arrow_downward' }}
+                  </span>
+                </button>
+              </th>
+              <th class="px-5 py-3">Cliente</th>
+              <th class="px-5 py-3">Cajero</th>
+              <th class="px-5 py-3">Pago</th>
+              <th class="px-5 py-3 text-center">Ítems</th>
+              <th class="px-5 py-3 text-right">
+                <button (click)="ordenarPor('total')" class="inline-flex items-center gap-1 hover:text-primary transition-colors uppercase ml-auto">
+                  Total
+                  <span class="material-symbols-outlined text-[15px] transition-opacity"
+                        [class.opacity-30]="orden() !== 'total_asc' && orden() !== 'total_desc'">
+                    {{ orden() === 'total_asc' ? 'arrow_upward' : 'arrow_downward' }}
+                  </span>
+                </button>
+              </th>
+              <th class="px-5 py-3 text-center">Estado</th>
+              <th class="px-5 py-3 text-center">Ver</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color text-sm">
+            @if (cargando()) {
+              @for (s of [1,2,3,4,5,6,7,8]; track s) {
+                <tr>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-28 rounded"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-20 rounded"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-32 rounded"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-24 rounded"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-20 rounded"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-8 rounded mx-auto"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-16 rounded ml-auto"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-5 w-20 rounded-full mx-auto"></div></td>
+                  <td class="px-5 py-3.5"><div class="fs-skeleton h-4 w-4 rounded mx-auto"></div></td>
+                </tr>
+              }
+            } @else {
+            @for (v of ventasFiltradas(); track v.id) {
+              <tr class="fs-fade-in-up hover:bg-gray-50 transition-colors cursor-pointer"
+                  [class.bg-primary-50]="ventaDetalle()?.id === v.id"
+                  [class.opacity-60]="v.estado === 'ANULADA'"
+                  (click)="verDetalle(v)">
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-text-secondary">{{ iconoComprobante(v.tipoComprobante) }}</span>
+                    <div>
+                      <div class="font-mono text-xs font-bold text-primary">{{ v.numeroComprobante }}</div>
+                      <div class="text-[10px] text-text-secondary uppercase">{{ v.tipoComprobante }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-3 text-sm text-text-main font-medium">{{ v.fechaHora }}</td>
+                <td class="px-5 py-3">
+                  <div class="font-medium text-text-main text-sm">{{ v.clienteNombre }}</div>
+                  @if (v.clienteDoc) {
+                    <div class="text-xs text-text-secondary font-mono">{{ v.clienteDoc }}</div>
+                  }
+                </td>
+                <td class="px-5 py-3 text-sm text-text-secondary">{{ v.cajeroNombre }}</td>
+                <td class="px-5 py-3">
+                  <div class="flex items-center gap-1.5 text-sm text-text-main">
+                    <span class="material-symbols-outlined text-[16px] text-text-secondary">{{ iconoMetodo(v.metodoPago) }}</span>
+                    {{ labelMetodo(v.metodoPago) }}
+                  </div>
+                </td>
+                <td class="px-5 py-3 text-center text-sm text-text-secondary tabular-nums">{{ v.items.length }}</td>
+                <td class="px-5 py-3 text-right">
+                  @if (v.tieneDevolucion) {
+                    <div class="font-bold text-text-main tabular-nums">{{ formatSol(v.totalNeto) }}</div>
+                    <div class="text-[10px] text-amber-600 tabular-nums">neto · −{{ formatSol(v.totalDevuelto) }}</div>
+                  } @else {
+                    <span class="font-bold text-text-main tabular-nums">{{ formatSol(v.total) }}</span>
+                  }
+                </td>
+                <td class="px-5 py-3 text-center">
+                  <div class="flex flex-col items-center gap-1">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold" [class]="badgeEstado(v.estado)">
+                      {{ labelEstado(v.estado) }}
+                    </span>
+                    @if (v.tieneDevolucion) {
+                      <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        <span class="material-symbols-outlined text-[11px] icon-fill">assignment_return</span>Devuelto
+                      </span>
+                    }
+                  </div>
+                </td>
+                <td class="px-5 py-3 text-center">
+                  <button (click)="verDetalle(v); $event.stopPropagation()"
+                    class="p-1.5 hover:bg-primary-50 hover:text-primary text-text-secondary rounded-lg transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">{{ ventaDetalle()?.id === v.id ? 'expand_less' : 'expand_more' }}</span>
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="px-5 py-16 text-center">
+                  <div class="flex flex-col items-center gap-3 text-text-secondary">
+                    <span class="material-symbols-outlined text-[48px] text-gray-300">receipt_long</span>
+                    <p class="font-medium">No se encontraron ventas</p>
+                    <p class="text-xs">Ajusta los filtros o el rango de fechas</p>
+                  </div>
+                </td>
+              </tr>
+            }
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="px-5 py-3 border-t border-border-color bg-gray-50 flex items-center justify-between gap-3">
+        <span class="text-xs text-text-secondary tabular-nums">
+          Mostrando <b class="text-text-main">{{ ventas().length }}</b> de <b class="text-text-main">{{ total() }}</b> venta(s)
+        </span>
+        @if (hayMas()) {
+          <button (click)="cargarMas()" [disabled]="cargandoMas()"
+            class="px-4 py-1.5 border border-border-color bg-white rounded-lg text-xs font-semibold text-primary hover:bg-primary-50 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+            @if (cargandoMas()) {
+              <span class="size-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>
+              Cargando…
+            } @else {
+              <span class="material-symbols-outlined text-[16px]">expand_more</span>
+              Cargar más
+            }
+          </button>
+        } @else if (total() > 0) {
+          <span class="text-[11px] text-text-secondary/70">No hay más resultados</span>
+        }
+      </div>
+    </div>
+
+    <!-- Panel de detalle de la venta -->
+    @if (ventaDetalle(); as v) {
+      <div class="w-80 xl:w-96 bg-surface rounded-xl border border-border-color shadow-soft flex flex-col overflow-hidden shrink-0">
+        <!-- Cabecera -->
+        <div class="p-5 border-b border-border-color flex items-start justify-between gap-3"
+             [class.bg-emerald-50]="v.estado === 'COMPLETADA'"
+             [class.bg-red-50]="v.estado === 'ANULADA'">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="material-symbols-outlined text-[18px] text-text-secondary">{{ iconoComprobante(v.tipoComprobante) }}</span>
+              <span class="font-mono text-sm font-bold text-primary">{{ v.numeroComprobante }}</span>
+            </div>
+            <p class="text-xs text-text-secondary">{{ v.fechaHora }}</p>
+            <span class="inline-flex items-center mt-2 px-2.5 py-1 rounded-full text-xs font-bold" [class]="badgeEstado(v.estado)">
+              {{ labelEstado(v.estado) }}
+            </span>
+          </div>
+          <button (click)="cerrarDetalle()" class="p-1 rounded-lg hover:bg-black/10 text-text-secondary transition-colors shrink-0">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <!-- Info general -->
+        <div class="p-4 border-b border-border-color flex flex-col gap-2.5 text-sm">
+          <div class="flex justify-between">
+            <span class="text-text-secondary">Cliente</span>
+            <span class="font-medium text-text-main text-right">{{ v.clienteNombre }}</span>
+          </div>
+          @if (v.clienteDoc) {
+            <div class="flex justify-between">
+              <span class="text-text-secondary">Documento</span>
+              <span class="font-mono text-text-main">{{ v.clienteDoc }}</span>
+            </div>
+          }
+          <div class="flex justify-between">
+            <span class="text-text-secondary">Cajero</span>
+            <span class="font-medium text-text-main">{{ v.cajeroNombre }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-text-secondary">Método de pago</span>
+            <div class="flex items-center gap-1.5 font-medium text-text-main">
+              <span class="material-symbols-outlined text-[15px]">{{ iconoMetodo(v.metodoPago) }}</span>
+              {{ labelMetodo(v.metodoPago) }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Motivo de anulación (si aplica) -->
+        @if (v.estado === 'ANULADA' && v.motivoAnulacion) {
+          <div class="mx-4 my-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p class="text-[10px] font-bold text-accent-red-ink uppercase tracking-wider mb-1 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[14px]">cancel</span>
+              Motivo de anulación
+            </p>
+            <p class="text-xs text-text-main leading-snug">{{ v.motivoAnulacion }}</p>
+            @if (v.anuladaEnTexto) {
+              <p class="text-[10px] text-accent-red-ink/80 mt-1.5 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">schedule</span>
+                Anulada el {{ v.anuladaEnTexto }}
+              </p>
+            }
+          </div>
+        }
+
+        <!-- Ítems de la venta -->
+        <div class="flex-1 overflow-y-auto">
+          <p class="px-4 pt-4 pb-2 text-[10px] font-bold text-text-secondary uppercase tracking-wider">
+            Detalle de productos ({{ v.items.length }})
+          </p>
+          <div class="flex flex-col divide-y divide-border-color">
+            @for (item of v.items; track item.nombre) {
+              <div class="px-4 py-3 flex items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium text-text-main truncate">{{ item.nombre }}</div>
+                  <div class="text-xs text-text-secondary">{{ item.cantidad }} × {{ formatSol(item.precioUnitario) }}</div>
+                </div>
+                <div class="text-sm font-bold text-text-main shrink-0">{{ formatSol(item.subtotal) }}</div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Totales -->
+        <div class="p-4 border-t border-border-color bg-gray-50 flex flex-col gap-1.5 text-sm">
+          <div class="flex justify-between text-text-secondary">
+            <span>Subtotal (sin IGV)</span><span>{{ formatSol(v.subtotal) }}</span>
+          </div>
+          <div class="flex justify-between text-text-secondary">
+            <span>IGV (18%)</span><span>{{ formatSol(v.igv) }}</span>
+          </div>
+          <div class="flex justify-between font-bold text-text-main text-base border-t border-border-color pt-2 mt-1">
+            <span>Total</span><span>{{ formatSol(v.total) }}</span>
+          </div>
+        </div>
+
+        <!-- Devoluciones registradas -->
+        @if (cargandoDev()) {
+          <div class="px-4 py-3 border-t border-border-color">
+            <div class="h-3 w-40 fs-skeleton rounded"></div>
+          </div>
+        } @else if (devolucionesDetalle().length > 0) {
+          <div class="px-4 py-3 border-t border-border-color bg-amber-50/40">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[11px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                <span class="material-symbols-outlined text-[14px] icon-fill">assignment_return</span>
+                Devoluciones
+              </p>
+              <span class="text-xs font-bold text-amber-700 tabular-nums">− {{ formatSol(totalDevuelto()) }}</span>
+            </div>
+            <div class="flex flex-col gap-2">
+              @for (d of devolucionesDetalle(); track d.id) {
+                <div class="text-xs bg-white border border-amber-100 rounded-lg px-3 py-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-text-secondary">{{ formatFechaHora(d.fecha) }}</span>
+                    <span class="font-bold text-amber-700 tabular-nums">{{ formatSol(+d.monto) }}</span>
+                  </div>
+                  <p class="text-text-main mt-0.5">
+                    @for (it of d.items; track it.id) {
+                      <span class="font-semibold">{{ it.cantidad }}×</span> {{ nombreItem(v, it.ventaItemId) }}@if (!$last){, }
+                    }
+                  </p>
+                  <p class="text-text-secondary mt-0.5 italic">"{{ d.motivo }}"@if (d.usuario) { · {{ d.usuario.nombres }} }</p>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Acciones -->
+        <div class="p-3 border-t border-border-color flex gap-2">
+          <button (click)="reimprimir(v)"
+                  class="flex-1 h-9 border border-border-color bg-white hover:bg-gray-50 text-text-main rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors">
+            <span class="material-symbols-outlined text-[16px]">print</span>Reimprimir
+          </button>
+          @if (v.estado === 'COMPLETADA' && puedeDevolver()) {
+            <button (click)="abrirDevolucion(v)" title="Devolver productos"
+                    class="h-9 px-3 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors active:scale-95">
+              <span class="material-symbols-outlined text-[16px]">assignment_return</span>Devolver
+            </button>
+          }
+          @if (v.estado === 'COMPLETADA' && puedeAnular()) {
+            <button (click)="abrirAnular(v)"
+                    class="h-9 px-3 border border-red-200 bg-red-50 hover:bg-red-100 text-accent-red-ink rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors active:scale-95">
+              <span class="material-symbols-outlined text-[16px]">cancel</span>Anular
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="h-6"></div>
+</div>
+
+
+<!-- ══════════════════════ MODAL ANULAR VENTA ══════════════════════════ -->
+@if (mostrarModalAnular()) {
+  @if (ventaParaAnular(); as v) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cancelarAnular()"
+         role="dialog" aria-modal="true">
+
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+           (click)="$event.stopPropagation()">
+
+        <!-- Cabecera -->
+        <div class="px-6 py-4 border-b border-border-color flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="size-10 rounded-xl bg-red-50 text-accent-red-ink flex items-center justify-center">
+              <span class="material-symbols-outlined icon-fill">cancel</span>
+            </div>
+            <div>
+              <h3 class="font-black text-lg text-text-main">Anular venta</h3>
+              <p class="text-xs text-text-secondary">
+                <span class="font-mono font-bold">{{ v.numeroComprobante }}</span> · {{ formatSol(v.total) }}
+              </p>
+            </div>
+          </div>
+          <button type="button" (click)="cancelarAnular()"
+                  class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors"
+                  aria-label="Cerrar">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <!-- Cuerpo -->
+        <div class="px-6 py-5">
+          <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0">warning</span>
+            <p class="text-xs text-amber-800 font-medium leading-relaxed">
+              Esta acción <strong>no se puede deshacer</strong>. La venta quedará registrada como
+              anulada y el motivo será visible en el historial para auditoría.
+            </p>
+          </div>
+
+          <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">
+            Motivo de anulación <span class="text-accent-red-ink">*</span>
+            <span class="font-normal normal-case text-text-secondary/70">
+              (mínimo 10 caracteres)
+            </span>
+          </label>
+          <textarea rows="3" name="motivo"
+                    placeholder="Ej. Cliente devolvió el producto por defecto de fábrica"
+                    [ngModel]="motivoAnulacion()"
+                    (ngModelChange)="motivoAnulacion.set($event)"
+                    class="block w-full px-3 py-2.5 bg-background-light border border-border-color rounded-lg text-sm placeholder-text-secondary focus:ring-2 focus:ring-accent-red/20 focus:bg-white focus:border-accent-red/40 transition-all resize-none">
+          </textarea>
+          <p class="text-[11px] text-text-secondary mt-1 text-right">
+            {{ motivoAnulacion().length }} / 10
+          </p>
+        </div>
+
+        <!-- Pie -->
+        <div class="px-6 py-4 border-t border-border-color bg-gray-50 flex items-center justify-end gap-2 rounded-b-2xl">
+          <button type="button" (click)="cancelarAnular()"
+                  class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-background-light transition-colors">
+            Cancelar
+          </button>
+          <button type="button" (click)="confirmarAnular()"
+                  [disabled]="motivoAnulacion().trim().length < 10 || anulando()"
+                  class="h-10 px-5 rounded-lg text-sm font-bold bg-accent-red text-white hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-red flex items-center gap-2">
+            @if (anulando()) {
+              <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+              Anulando…
+            } @else {
+              <span class="material-symbols-outlined text-[18px]">cancel</span>
+              Anular venta
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+
+<!-- ══════════════════════ MODAL DEVOLUCIÓN ════════════════════════════ -->
+@if (mostrarDevolucion()) {
+  @if (ventaDevolver(); as v) {
+    <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+         (click)="cerrarDevolucion()" role="dialog" aria-modal="true">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh]"
+           (click)="$event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-border-color flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="size-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span class="material-symbols-outlined icon-fill">assignment_return</span>
+            </div>
+            <div>
+              <h3 class="font-black text-lg text-text-main">Devolver productos</h3>
+              <p class="text-xs text-text-secondary font-mono font-bold">{{ v.numeroComprobante }}</p>
+            </div>
+          </div>
+          <button type="button" (click)="cerrarDevolucion()"
+                  class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors" aria-label="Cerrar">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+
+        <div class="px-6 py-4 overflow-y-auto flex flex-col gap-2">
+          <p class="text-[11px] font-bold text-text-secondary uppercase tracking-wider">Elige qué devolver</p>
+          @for (it of v.items; track it.ventaItemId) {
+            @let disp = disponibleDevolver(it.ventaItemId, it.cantidad);
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg border border-border-color" [class.opacity-50]="disp <= 0">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-text-main truncate">{{ it.nombre }}</p>
+                <p class="text-[11px] text-text-secondary">
+                  Vendido: {{ it.cantidad }}
+                  @if (it.cantidad - disp > 0) { · <span class="text-amber-700 font-bold">Devuelto: {{ it.cantidad - disp }}</span> }
+                  · Disponible: {{ disp }} · {{ formatSol(it.precioUnitario) }} c/u
+                </p>
+              </div>
+              <input type="number" min="0" [max]="disp" [disabled]="disp <= 0"
+                     [ngModel]="cantDevolver()[it.ventaItemId]"
+                     (ngModelChange)="setCantDevolver(it.ventaItemId, $event, disp)"
+                     class="w-16 h-8 px-2 border border-border-color rounded-lg text-sm tabular-nums text-center focus:ring-2 focus:ring-amber-300 focus:border-amber-400 disabled:bg-background-light disabled:cursor-not-allowed"/>
+            </div>
+          }
+          <div class="mt-2">
+            <label class="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1.5">Motivo</label>
+            <input type="text" [ngModel]="motivoDevolucion()" (ngModelChange)="motivoDevolucion.set($event)"
+                   placeholder="Ej. Producto en mal estado"
+                   class="block w-full px-3 h-10 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+          </div>
+          <p class="text-[11px] text-text-secondary flex items-center gap-1 mt-1">
+            <span class="material-symbols-outlined text-[13px]">info</span>
+            El stock vuelve al inventario y, si tienes caja abierta, se registra el egreso del efectivo.
+          </p>
+        </div>
+
+        <div class="px-6 py-4 border-t border-border-color bg-background-light flex items-center justify-between gap-2 rounded-b-2xl shrink-0">
+          <span class="text-sm font-bold text-text-main">A devolver: <span class="text-amber-700 tabular-nums">{{ formatSol(totalDevolver()) }}</span></span>
+          <div class="flex gap-2">
+            <button type="button" (click)="cerrarDevolucion()"
+                    class="h-10 px-4 rounded-lg text-sm font-bold text-text-secondary hover:bg-white transition-colors">Cancelar</button>
+            <button type="button" (click)="confirmarDevolucion()" [disabled]="devolviendo() || totalDevolver() <= 0"
+                    class="h-10 px-5 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-40 flex items-center gap-2">
+              @if (devolviendo()) {
+                <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
+                Procesando…
+              } @else {
+                <span class="material-symbols-outlined text-[18px]">assignment_return</span>
+                Registrar devolución
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+}

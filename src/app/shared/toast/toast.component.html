@@ -1,0 +1,33 @@
+<!-- Contenedor fijo top-right, sobre todo el layout -->
+<div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 w-80 pointer-events-none">
+
+  @for (t of toastSvc.toasts(); track t.id) {
+    <div
+      class="fs-toast-in flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg
+             pointer-events-auto transition-all duration-300"
+      [class]="clasesContenedor(t.tipo)">
+
+      <!-- Ícono -->
+      <span
+        class="material-symbols-outlined icon-fill text-[20px] shrink-0 mt-0.5"
+        [class]="clasesIcono(t.tipo)">
+        {{ icono(t.tipo) }}
+      </span>
+
+      <!-- Mensaje -->
+      <p class="text-sm font-medium flex-1 leading-snug" [class]="clasesTexto(t.tipo)">
+        {{ t.mensaje }}
+      </p>
+
+      <!-- Botón cerrar -->
+      <button
+        (click)="toastSvc.cerrar(t.id)"
+        class="shrink-0 opacity-40 hover:opacity-80 transition-opacity mt-0.5"
+        [class]="clasesTexto(t.tipo)"
+        aria-label="Cerrar notificación">
+        <span class="material-symbols-outlined text-[16px]">close</span>
+      </button>
+    </div>
+  }
+
+</div>

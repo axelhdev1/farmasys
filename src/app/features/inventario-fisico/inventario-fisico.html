@@ -1,0 +1,213 @@
+<div class="max-w-[1400px] mx-auto flex flex-col gap-6">
+
+  <!-- Cabecera -->
+  <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-text-main tracking-tight">Inventario físico</h2>
+      <p class="text-text-secondary text-sm mt-1">Cuenta el stock real por lote y cuadra las diferencias con el sistema.</p>
+    </div>
+    @if (hayConteo()) {
+      <div class="flex items-center gap-2 self-start md:self-auto">
+        <button (click)="guardar()" [disabled]="guardando()"
+          class="h-10 px-4 rounded-lg text-sm font-semibold border border-border-color bg-white text-text-main hover:bg-gray-50 transition-colors disabled:opacity-50 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">save</span>Guardar
+        </button>
+        <button (click)="cerrar()" [disabled]="cerrando()"
+          class="h-10 px-4 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2">
+          @if (cerrando()) { <span class="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></span> Aplicando… }
+          @else { <span class="material-symbols-outlined text-[18px]">task_alt</span> Cerrar y ajustar }
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (cargando()) {
+    <div class="bg-surface rounded-xl border border-border-color shadow-soft p-6 flex flex-col gap-3">
+      @for (s of [1,2,3,4,5]; track s) { <div class="fs-skeleton h-8 w-full rounded"></div> }
+    </div>
+  } @else if (!hayConteo()) {
+
+    <!-- Sin conteo activo -->
+    <div class="bg-surface rounded-xl border border-border-color shadow-soft p-10 flex flex-col items-center text-center gap-3">
+      <span class="material-symbols-outlined text-[52px] text-primary/30">fact_check</span>
+      <h3 class="font-bold text-text-main text-lg">No hay un conteo en proceso</h3>
+      <p class="text-text-secondary text-sm max-w-md">Al iniciar, el sistema toma una foto del stock actual por lote. Luego cuentas físicamente y al cerrar se ajustan las diferencias.</p>
+      <button (click)="iniciar()"
+        class="mt-2 h-10 px-5 rounded-lg text-sm font-bold bg-primary text-white hover:bg-primary/90 transition-colors flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">play_arrow</span>Iniciar conteo
+      </button>
+    </div>
+
+    <!-- Historial -->
+    @if (historial().length) {
+      <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+        <div class="px-5 py-4 border-b border-border-color flex items-center gap-2">
+          <span class="material-symbols-outlined text-[20px] text-text-secondary">history</span>
+          <h3 class="font-bold text-text-main">Conteos anteriores</h3>
+        </div>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color">
+            <tr>
+              <th class="px-5 py-3 text-left">Fecha</th>
+              <th class="px-5 py-3 text-left">Responsable</th>
+              <th class="px-5 py-3 text-center">Lotes</th>
+              <th class="px-5 py-3 text-center">Sobrantes</th>
+              <th class="px-5 py-3 text-center">Faltantes</th>
+              <th class="px-5 py-3 text-center">Acta</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color">
+            @for (h of historial(); track h.id) {
+              <tr (click)="verActa(h.id)" class="hover:bg-primary-50/50 transition-colors cursor-pointer">
+                <td class="px-5 py-3 text-text-main">{{ formatFecha(h.cerradoEn) }}</td>
+                <td class="px-5 py-3 text-text-secondary">{{ h.usuario?.nombres }} {{ h.usuario?.apellidos }}</td>
+                <td class="px-5 py-3 text-center tabular-nums">{{ h.lineas }}</td>
+                <td class="px-5 py-3 text-center font-bold tabular-nums" [class]="h.sobrantes > 0 ? 'text-emerald-600' : 'text-text-secondary/50'">{{ h.sobrantes > 0 ? '+' + h.sobrantes : '0' }}</td>
+                <td class="px-5 py-3 text-center font-bold tabular-nums" [class]="h.faltantes > 0 ? 'text-accent-red-ink' : 'text-text-secondary/50'">{{ h.faltantes > 0 ? '−' + h.faltantes : '0' }}</td>
+                <td class="px-5 py-3 text-center">
+                  <span class="material-symbols-outlined text-[18px] text-text-secondary">chevron_right</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+  } @else {
+
+    <!-- Resumen -->
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div class="bg-surface rounded-xl p-4 shadow-soft border border-border-color">
+        <p class="text-text-secondary text-xs font-medium">Contados</p>
+        <p class="text-2xl font-bold text-text-main">{{ resumen().contados }} <span class="text-sm text-text-secondary font-medium">/ {{ filas().length }}</span></p>
+      </div>
+      <div class="bg-surface rounded-xl p-4 shadow-soft border border-border-color">
+        <p class="text-text-secondary text-xs font-medium">Pendientes</p>
+        <p class="text-2xl font-bold text-amber-600">{{ resumen().pendientes }}</p>
+      </div>
+      <div class="bg-surface rounded-xl p-4 shadow-soft border border-emerald-100">
+        <p class="text-text-secondary text-xs font-medium">Sobrantes</p>
+        <p class="text-2xl font-bold text-emerald-600">+{{ resumen().sobrantes }}</p>
+      </div>
+      <div class="bg-surface rounded-xl p-4 shadow-soft border border-red-100">
+        <p class="text-text-secondary text-xs font-medium">Faltantes</p>
+        <p class="text-2xl font-bold text-accent-red-ink">−{{ resumen().faltantes }}</p>
+      </div>
+    </div>
+
+    <!-- Controles -->
+    <div class="flex flex-col sm:flex-row gap-3">
+      <input type="text" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+        placeholder="Buscar producto o lote…"
+        class="flex-1 h-10 px-3 border border-border-color bg-background-light rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+      <label class="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer h-10 px-3 border border-border-color rounded-lg bg-white">
+        <input type="checkbox" [ngModel]="soloDiferencias()" (ngModelChange)="soloDiferencias.set($event)" class="accent-primary"/>
+        Solo diferencias
+      </label>
+    </div>
+
+    <!-- Tabla de conteo -->
+    <div class="bg-surface rounded-xl border border-border-color shadow-soft overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color">
+            <tr>
+              <th class="px-4 py-3 text-left">Producto</th>
+              <th class="px-4 py-3 text-left">Lote</th>
+              <th class="px-4 py-3 text-left">Vence</th>
+              <th class="px-4 py-3 text-center">Sistema</th>
+              <th class="px-4 py-3 text-center">Contado</th>
+              <th class="px-4 py-3 text-center">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color">
+            @for (f of filasVista(); track f.id) {
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-4 py-2.5 font-medium text-text-main">{{ f.productoNombre }}</td>
+                <td class="px-4 py-2.5 font-mono text-xs text-text-secondary">{{ f.loteNumero }}</td>
+                <td class="px-4 py-2.5 text-text-secondary text-xs">{{ formatFecha(f.vencimiento) }}</td>
+                <td class="px-4 py-2.5 text-center tabular-nums text-text-secondary">{{ f.sistemaCantidad }}</td>
+                <td class="px-4 py-2.5 text-center">
+                  <input type="number" min="0" [value]="f.contado" (input)="setContado(f.id, $any($event.target).value)"
+                    class="w-20 h-8 px-2 border border-border-color rounded-lg text-sm tabular-nums text-center focus:ring-2 focus:ring-primary/20 focus:border-primary"/>
+                </td>
+                <td class="px-4 py-2.5 text-center tabular-nums font-bold"
+                    [class]="f.contado == null ? 'text-text-secondary/40' : diferencia(f) > 0 ? 'text-emerald-600' : diferencia(f) < 0 ? 'text-accent-red-ink' : 'text-text-secondary'">
+                  @if (f.contado == null) { — } @else { {{ diferencia(f) > 0 ? '+' : '' }}{{ diferencia(f) }} }
+                </td>
+              </tr>
+            } @empty {
+              <tr><td colspan="6" class="px-4 py-12 text-center text-text-secondary text-sm">Sin lotes que mostrar.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <input type="text" [ngModel]="observacion()" (ngModelChange)="observacion.set($event)"
+      placeholder="Observación del conteo (opcional): ej. acta N.º 004"
+      class="w-full h-10 px-3 bg-background-light border border-border-color rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary transition-all"/>
+  }
+
+  <div class="h-6"></div>
+</div>
+
+<!-- ══════════════════════ MODAL: ACTA DE CONTEO ═══════════════════════ -->
+@if (cargandoActa()) {
+  <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+    <div class="size-10 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+  </div>
+}
+@if (acta(); as a) {
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+       (click)="cerrarActa()" role="dialog" aria-modal="true">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-border-color flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="font-black text-lg text-text-main">Acta de inventario físico</h3>
+          <p class="text-xs text-text-secondary">
+            {{ a.sucursal?.nombre }} · Cerrado {{ formatFecha(a.cerradoEn) }} ·
+            {{ a.usuario?.nombres }} {{ a.usuario?.apellidos }}@if (a.observacion) { · {{ a.observacion }} }
+          </p>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button (click)="imprimirActa()" title="Imprimir"
+            class="h-9 px-3 rounded-lg text-sm font-semibold border border-border-color bg-white hover:bg-gray-50 text-text-main transition-colors flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px]">print</span>Imprimir
+          </button>
+          <button (click)="cerrarActa()" class="size-9 rounded-lg hover:bg-background-light text-text-secondary flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs font-semibold text-text-secondary uppercase border-b border-border-color sticky top-0">
+            <tr>
+              <th class="px-4 py-2.5 text-left">Producto</th>
+              <th class="px-4 py-2.5 text-left">Lote</th>
+              <th class="px-4 py-2.5 text-center">Sistema</th>
+              <th class="px-4 py-2.5 text-center">Contado</th>
+              <th class="px-4 py-2.5 text-center">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border-color">
+            @for (it of a.items; track it.id) {
+              <tr [class.bg-red-50]="difActa(it) < 0" [class.bg-emerald-50]="difActa(it) > 0">
+                <td class="px-4 py-2 text-text-main">{{ it.productoNombre }}</td>
+                <td class="px-4 py-2 font-mono text-xs text-text-secondary">{{ it.loteNumero }}</td>
+                <td class="px-4 py-2 text-center tabular-nums text-text-secondary">{{ it.sistemaCantidad }}</td>
+                <td class="px-4 py-2 text-center tabular-nums">{{ it.contadaCantidad == null ? '—' : it.contadaCantidad }}</td>
+                <td class="px-4 py-2 text-center tabular-nums font-bold"
+                    [class]="it.contadaCantidad == null ? 'text-text-secondary/40' : difActa(it) > 0 ? 'text-emerald-600' : difActa(it) < 0 ? 'text-accent-red-ink' : 'text-text-secondary'">
+                  @if (it.contadaCantidad == null) { — } @else { {{ difActa(it) > 0 ? '+' : '' }}{{ difActa(it) }} }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+}
