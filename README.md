@@ -3,22 +3,12 @@
 Punto de venta, inventario por lotes, caja y contabilidad operativa para una
 cadena de farmacias con varias sedes. Angular 21 + NestJS 10 + PostgreSQL.
 
-> Proyecto real, desarrollado para una cadena de 5 boticas en Perú.
-> Este repositorio incluye una **semilla de demostración** con datos ficticios
-> para poder levantarlo y recorrerlo completo: ver [`demo/README.md`](demo/README.md).
+> Proyecto real, desarrollado para una cadena de boticas en Perú.
+> El repositorio incluye una **semilla de demostración** con datos ficticios:
+> tres boticas, 94 productos y un mes de movimiento, para poder levantarlo y
+> recorrerlo completo en dos comandos.
 
 ![Torre de control](demo/capturas/dashboard.png)
-
-> ### ⚖️ Código propietario — no es open source
->
-> © 2026 Axel Huatuco Bravo. Todos los derechos reservados.
->
-> Se publica para **lectura y evaluación profesional**. Está permitido leer el
-> código, clonarlo y ejecutarlo localmente para evaluarlo. **No** está permitido
-> usarlo con fines comerciales, redistribuirlo ni crear obras derivadas sin
-> autorización escrita — ver [`LICENSE`](LICENSE).
->
-> Obra registrada. Para solicitar permisos: **axelhdev@gmail.com**
 
 ---
 
@@ -29,47 +19,16 @@ en **unidades distintas del mismo producto** (caja, blíster, pastilla suelta), 
 **medicamentos que exigen receta**, y su margen real depende de a qué precio
 compró cada lote — no del precio de la lista de hoy.
 
-Multiplicado por cinco locales, aparecen problemas que un CRUD no resuelve:
+Multiplicado por varios locales, aparecen problemas que un CRUD no resuelve:
 qué sede tiene lo que a otra le falta, quién movió el stock que no cuadra, y
 cuánto gana cada botica de verdad una vez descontadas mermas y gastos.
 
 ---
 
-## Decisiones técnicas que vale la pena mirar
-
-**FEFO — se despacha primero lo que vence antes.**
-Vender no es restar de un número. El sistema recorre los lotes ordenados por
-vencimiento, ignora los vencidos, y deja constancia de qué lote salió en cada
-venta. Eso permite reingresar una devolución **a su lote original**, no al más
-reciente.
-→ [`inventario.service.ts`](backend/src/inventario/inventario.service.ts)
-
-**Costo promedio ponderado, y congelado al vender.**
-Cada compra recalcula el costo del stock. Al vender, ese costo se **copia** en la
-línea de venta. Sin eso, el margen histórico cambia solo cuando el proveedor sube
-precios: las ventas del año pasado "perderían" utilidad sin que nadie tocara nada.
-
-**Dos reglas de aislamiento por sucursal, no una.**
-Un encargado de sede administra su botica; el dueño ve las cinco. Pero el estado
-de resultados no es lo mismo que el inventario: hay una regla común y otra
-**financiera**, más estricta, que solo el dueño cruza.
-→ [`scope-sucursal.util.ts`](backend/src/auth/scope-sucursal.util.ts)
-
-**Todo lo que mueve stock y plata va en una transacción.**
-Una venta descuenta lotes, actualiza el stock agregado, escribe el kardex, genera
-el correlativo del comprobante y registra el pago. O pasa todo, o no pasa nada.
-Con clave de idempotencia, para que un doble clic no cobre dos veces.
-
-**Tres rastros de auditoría.** Quién movió mercadería (kardex), quién entró al
-sistema, y quién cambió un ajuste — con valor anterior y nuevo, escrito en la
-misma transacción que el cambio.
-
----
-
 ## Bugs encontrados y corregidos
 
-Auditando el código propio, con su impacto en dinero. Es la parte del proyecto
-de la que más aprendí.
+Auditando mi propio código, con su impacto en dinero. Es la parte del proyecto
+de la que más aprendí, y la razón por la que está primero.
 
 **El costo no viajaba en las transferencias.**
 Mover mercadería entre boticas trasladaba las unidades pero no su costo. La sede
@@ -107,44 +66,34 @@ que FEFO nunca iba a vender.
 
 ---
 
-## Arquitectura
+## Decisiones técnicas que vale la pena mirar
 
-```
-Angular 21 (standalone, signals)          NestJS 10 + Prisma 5
-├── POS                                   ├── Transacciones y FEFO
-├── Inventario y lotes                    ├── Guards por rol y por permiso
-├── Caja y arqueo                         ├── Aislamiento por sucursal
-├── Finanzas                              └── Auditoría
-└── Configuración                                    │
-                                                PostgreSQL 16
-```
+**FEFO — se despacha primero lo que vence antes.**
+Vender no es restar de un número. El sistema recorre los lotes ordenados por
+vencimiento, ignora los vencidos, y deja constancia de qué lote salió en cada
+venta. Eso permite reingresar una devolución **a su lote original**, no al más
+reciente.
+→ [`inventario.service.ts`](backend/src/inventario/inventario.service.ts)
 
-- **Dinero siempre en `Decimal`**, nunca en coma flotante.
-- **Fechas por día local**, nunca UTC (ver el bug de las 7 pm).
-- **Permisos por usuario**, con el rol como plantilla inicial y "pisos"
-  no negociables por módulo.
-- Documentación viva en [`FLUJO-SISTEMA.md`](FLUJO-SISTEMA.md): cómo funciona
-  el sistema, qué no romper, y qué revisar cuando algo no cuadra.
+**Costo promedio ponderado, y congelado al vender.**
+Cada compra recalcula el costo del stock. Al vender, ese costo se **copia** en la
+línea de venta. Sin eso, el margen histórico cambia solo cuando el proveedor sube
+precios: las ventas del año pasado "perderían" utilidad sin que nadie tocara nada.
 
----
+**Dos reglas de aislamiento por sucursal, no una.**
+Un encargado de sede administra su botica; el dueño ve todas. Pero el estado
+de resultados no es lo mismo que el inventario: hay una regla común y otra
+**financiera**, más estricta, que solo el dueño cruza.
+→ [`scope-sucursal.util.ts`](backend/src/auth/scope-sucursal.util.ts)
 
-## Levantarlo
+**Todo lo que mueve stock y plata va en una transacción.**
+Una venta descuenta lotes, actualiza el stock agregado, escribe el kardex, genera
+el correlativo del comprobante y registra el pago. O pasa todo, o no pasa nada.
+Con clave de idempotencia, para que un doble clic no cobre dos veces.
 
-```bash
-# Backend + base de datos
-cd backend
-cp .env.example .env          # define tus secretos
-docker compose up -d --build
-docker compose exec api npm run db:seed:demo   # datos de demostración
-
-# Frontend
-cd ..
-npm install
-ng serve                      # http://localhost:4200
-```
-
-API y documentación Swagger en `http://localhost:3000/api/docs`.
-Credenciales de la demostración: [`demo/README.md`](demo/README.md).
+**Tres rastros de auditoría.** Quién movió mercadería (kardex), quién entró al
+sistema, y quién cambió un ajuste — con valor anterior y nuevo, escrito en la
+misma transacción que el cambio.
 
 ---
 
@@ -201,20 +150,80 @@ inmovilizado en stock con su cobertura en días.
 
 ---
 
-## Licencia
+## Levantarlo
 
-Código publicado para **demostración y evaluación profesional**. No es código
-abierto: se puede leer y ejecutar localmente, pero no usar comercialmente,
-copiar ni redistribuir sin permiso. Ver [`LICENSE`](LICENSE).
+Todo corre en Docker — base de datos, API y frontend. No hace falta instalar
+Node ni Angular en tu máquina.
 
-Los datos de las semillas de demostración son ficticios.
+```bash
+cd backend
+cp .env.example .env          # define tus secretos (hay instrucciones dentro)
+docker compose up -d --build
+
+# Datos de demostración: 3 boticas, 94 productos, un mes de ventas
+docker compose exec api npm run db:seed:demo
+```
+
+| | |
+|---|---|
+| Sistema | http://localhost:4200 |
+| API y Swagger | http://localhost:3000/api/docs |
+| Credenciales | se imprimen al terminar la semilla, y están en [`demo/README.md`](demo/README.md) |
+
+Para desarrollo del frontend sin reconstruir la imagen en cada cambio,
+`npm install` y `ng serve` en la raíz también funcionan: el backend ya acepta
+CORS desde el 4200.
+
+---
+
+## Arquitectura
+
+```
+Angular 21 (standalone, signals)          NestJS 10 + Prisma 5
+├── POS                                   ├── Transacciones y FEFO
+├── Inventario y lotes                    ├── Guards por rol y por permiso
+├── Caja y arqueo                         ├── Aislamiento por sucursal
+├── Finanzas                              └── Auditoría
+└── Configuración                                    │
+                                                PostgreSQL 16
+```
+
+- **Dinero siempre en `Decimal`**, nunca en coma flotante.
+- **Fechas por día local**, nunca UTC (ver el bug de las 7 pm).
+- **Permisos por usuario**, con el rol como plantilla inicial y "pisos"
+  no negociables por módulo.
+- Documentación viva en [`FLUJO-SISTEMA.md`](FLUJO-SISTEMA.md): cómo funciona
+  el sistema, qué no romper, y qué revisar cuando algo no cuadra.
 
 ---
 
 ## Estado
 
-En desarrollo activo. Pendiente principal: **facturación electrónica SUNAT** —
-el proveedor está inyectado por token y hoy usa una implementación de prueba,
-así que los comprobantes que imprime no tienen validez tributaria. El detalle de
-lo que falta está en [`PLAN-MAESTRO.md`](docs/PLAN-MAESTRO.md) y
-[`PENDIENTES.md`](docs/PENDIENTES.md).
+En desarrollo activo, y avanzando hacia producción para el cliente.
+
+Lo que ya funciona de punta a punta: venta, inventario por lotes, caja con
+arqueo, transferencias entre sedes, mermas, compras, finanzas y auditoría.
+
+**Lo que falta:** la facturación electrónica SUNAT. El proveedor está inyectado
+por token y hoy usa una implementación de prueba, así que los comprobantes que
+imprime **no tienen validez tributaria** — el trabajo restante es conectar un PSE
+real, no reescribir el flujo. El detalle está en
+[`PLAN-MAESTRO.md`](docs/PLAN-MAESTRO.md) y [`PENDIENTES.md`](docs/PENDIENTES.md).
+
+---
+
+## Licencia
+
+**Código propietario. No es open source.**
+
+© 2026 Axel Huatuco Bravo. Todos los derechos reservados.
+
+Se publica para **lectura y evaluación profesional**: está permitido leer el
+código, clonarlo y ejecutarlo localmente para evaluarlo. **No** está permitido
+usarlo con fines comerciales, redistribuirlo ni crear obras derivadas sin
+autorización escrita. Ver [`LICENSE`](LICENSE).
+
+Los nombres de empresas, personas y datos de las semillas de demostración son
+ficticios.
+
+Para solicitar permisos: **axelhdev@gmail.com**
