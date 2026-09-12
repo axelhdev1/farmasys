@@ -19,6 +19,7 @@ import { TransferenciasModule } from './transferencias/transferencias.module';
 import { InventarioFisicoModule } from './inventario-fisico/inventario-fisico.module';
 import { ConfiguracionModule } from './configuracion/configuracion.module';
 import { SunatModule } from './sunat/sunat.module';
+import { IaModule } from './ia/ia.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { SunatModule } from './sunat/sunat.module';
     InventarioFisicoModule,
     ConfiguracionModule,
     SunatModule,
+    IaModule,
   ],
   controllers: [AppController],
 })

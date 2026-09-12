@@ -23,6 +23,17 @@ import { environment } from '../../../environments/environment';
  */
 
 const TIMEOUT_MS = 15_000;         // 15 segundos máximo por petición
+
+/**
+ * Las llamadas a IA son la excepción: hablan con un proveedor externo que
+ * tarda segundos en generar el texto. Con el tope general de 15 s el navegador
+ * cortaba la petición ANTES de que el backend pudiera responder (incluso antes
+ * de su propia degradación), y el usuario veía "el servidor tardó demasiado"
+ * cuando en realidad todo iba bien.
+ */
+const TIMEOUT_IA_MS = 45_000;
+const PREFIJOS_IA = ['/ia/'];
+
 const ENDPOINTS_PUBLICOS = ['/auth/login', '/auth/refresh'];
 
 /**
@@ -53,16 +64,19 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
       ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
       : req;
 
+  // Tope de espera: el general, salvo en las rutas de IA (ver TIMEOUT_IA_MS).
+  const topeMs = PREFIJOS_IA.some((p) => req.url.includes(p)) ? TIMEOUT_IA_MS : TIMEOUT_MS;
+
   return next(reqFinal).pipe(
-    // 2. Timeout: si el backend no responde en TIMEOUT_MS → error
-    timeout(TIMEOUT_MS),
+    // 2. Timeout: si el backend no responde a tiempo → error
+    timeout(topeMs),
 
     // 3. Manejo centralizado de errores
     catchError((err: unknown) => {
       // ── Timeout ──────────────────────────────────────────────────────
       if (err instanceof Error && err.name === 'TimeoutError') {
         if (environment.debug) {
-          console.warn('[API] Timeout — el servidor tardó más de', TIMEOUT_MS / 1000, 's');
+          console.warn('[API] Timeout — el servidor tardó más de', topeMs / 1000, 's');
         }
         return throwError(
           () => new Error('El servidor tardó demasiado. Intente nuevamente.')

@@ -80,6 +80,10 @@ services:
       JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
       JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      # IA: se leen del .env de esta carpeta. Si GEMINI_API_KEY va vacía, el
+      # módulo de IA arranca igual y degrada a "tabla sin análisis".
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       PORT: 3000
     ports:
       - "3000:3000"

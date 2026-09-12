@@ -66,6 +66,40 @@ que FEFO nunca iba a vender.
 
 ---
 
+## Análisis con IA — el LLM no calcula
+
+La pantalla de Reposición ya calcula, para cada producto: velocidad de venta,
+días de cobertura que quedan y cuánto pedir. Con 300 productos son 300 filas que
+alguien tiene que leer entera. El módulo de IA las convierte en un plan de
+compra: grupos accionables, ordenados por urgencia, con una frase que explica
+por qué cada uno importa.
+
+**La regla que ordena todo el módulo: el modelo no toca un solo número.**
+Las cifras salen de PostgreSQL. El modelo recibe la tabla ya calculada y
+devuelve texto y códigos de producto. Un LLM alucinando "pide 500 cajas" es
+plata real: mercadería parada o un quiebre de stock.
+
+**Y aun así no se le cree.** Cada código que cita el modelo se valida contra la
+tabla que se le envió; el que no existe se descarta, se cuenta y se avisa en la
+respuesta. Con tests.
+
+**Degrada, no revienta.** Sin clave, con Google caído o con timeout, el endpoint
+devuelve igualmente la tabla y un motivo. Nunca un 500: el encargado de almacén
+tiene que poder hacer su pedido aunque la IA no esté.
+
+**El proveedor está detrás de una interfaz** (`AnalizadorIA`). Hoy es Gemini
+—único tier gratuito real y sin tarjeta—; cambiar a Claude o a un modelo local
+con Ollama es una clase nueva y una línea en el módulo. En producción para una
+botica no usaría el tier gratuito: permite que el contenido se use para entrenar.
+
+La clave vive solo en `backend/.env` y la lee el backend. El navegador llama a
+`/api/v1/ia/...`, nunca a Google: una clave de IA en el frontend es una clave
+pública.
+
+→ [`docs/MODULO-IA.md`](docs/MODULO-IA.md) · [`backend/src/ia/`](backend/src/ia)
+
+---
+
 ## Decisiones técnicas que vale la pena mirar
 
 **FEFO — se despacha primero lo que vence antes.**
@@ -192,6 +226,8 @@ Angular 21 (standalone, signals)          NestJS 10 + Prisma 5
 - **Fechas por día local**, nunca UTC (ver el bug de las 7 pm).
 - **Permisos por usuario**, con el rol como plantilla inicial y "pisos"
   no negociables por módulo.
+- **IA con los números fuera del modelo**: Postgres calcula, el LLM redacta,
+  y la salida se valida contra la tabla antes de mostrarse.
 - Documentación viva en [`FLUJO-SISTEMA.md`](FLUJO-SISTEMA.md): cómo funciona
   el sistema, qué no romper, y qué revisar cuando algo no cuadra.
 

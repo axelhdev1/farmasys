@@ -17,6 +17,10 @@
           </button>
         }
       </div>
+      <button type="button" (click)="analizarConIA()" [disabled]="analizando()"
+              class="h-9 px-4 bg-surface hover:bg-background-light text-primary border border-primary/30 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
+        <span class="material-symbols-outlined text-[18px]">auto_awesome</span>{{ analizando() ? 'Analizando…' : 'Analizar con IA' }}
+      </button>
       <button type="button" (click)="irAComprar()"
               class="h-9 px-4 bg-primary hover:bg-primary-700 text-white rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors active:scale-95 shadow-sm shadow-primary/20">
         <span class="material-symbols-outlined text-[18px]">shopping_cart</span>Ir a comprar
@@ -45,6 +49,73 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Plan de compra sugerido por IA ────────────────────────────── -->
+  @if (analisis(); as a) {
+    <div class="bg-surface rounded-xl border border-primary/25 shadow-soft overflow-hidden">
+      <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-border-color bg-primary/5">
+        <div class="flex items-start gap-3">
+          <div class="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[20px]">auto_awesome</span>
+          </div>
+          <div>
+            <p class="font-bold text-text-main leading-tight">Plan de compra sugerido</p>
+            <p class="text-2xs text-text-secondary mt-0.5">
+              Agrupado por IA · {{ estadoIa()?.modelo }}
+              @if (estadoIa()?.enCache) { <span>· en caché</span> }
+            </p>
+          </div>
+        </div>
+        <button type="button" (click)="cerrarAnalisis()" aria-label="Cerrar análisis"
+                class="size-8 rounded-lg text-text-secondary hover:bg-background-light flex items-center justify-center shrink-0 transition-colors">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <div class="p-5 flex flex-col gap-4">
+        @if (a.resumen) {
+          <p class="text-sm text-text-main leading-relaxed">{{ a.resumen }}</p>
+        }
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+          @for (g of a.grupos; track $index) {
+            <div class="rounded-lg border border-border-color p-4 flex flex-col gap-2">
+              <p class="font-bold text-sm text-text-main leading-tight">{{ g.titulo }}</p>
+              <p class="text-xs text-text-secondary leading-relaxed">{{ g.motivo }}</p>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                @for (c of g.codigos; track c) {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-primary/10 text-primary text-2xs font-bold">
+                    {{ nombrePorCodigo(c) }}
+                  </span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (a.avisos.length) {
+          <div class="rounded-lg bg-background-light p-4 flex flex-col gap-1.5">
+            <p class="text-2xs font-bold text-text-secondary uppercase tracking-wide">Ojo con esto</p>
+            @for (av of a.avisos; track $index) {
+              <p class="text-xs text-text-main leading-relaxed">· {{ av }}</p>
+            }
+          </div>
+        }
+
+        <p class="text-2xs text-text-secondary leading-relaxed border-t border-border-color pt-3">
+          Las cantidades y la cobertura las calcula el sistema con los datos de venta. La IA solo
+          agrupa, prioriza y explica: no modifica ninguna cifra.
+        </p>
+      </div>
+    </div>
+  }
+
+  @if (!analisis() && estadoIa()?.motivo) {
+    <div class="rounded-xl border border-border-color bg-background-light px-5 py-3 flex items-start gap-2.5">
+      <span class="material-symbols-outlined text-[18px] text-accent-orange-ink shrink-0">info</span>
+      <p class="text-xs text-text-main leading-relaxed">{{ estadoIa()?.detalle }}</p>
+    </div>
+  }
 
   <!-- ── Búsqueda ──────────────────────────────────────────────────── -->
   <div class="relative max-w-sm">
