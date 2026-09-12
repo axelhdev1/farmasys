@@ -68,6 +68,8 @@ que FEFO nunca iba a vender.
 
 ## Análisis con IA — el LLM no calcula
 
+![Plan de compra generado por IA](demo/capturas/ia-reposicion.png)
+
 La pantalla de Reposición ya calcula, para cada producto: velocidad de venta,
 días de cobertura que quedan y cuánto pedir. Con 300 productos son 300 filas que
 alguien tiene que leer entera. El módulo de IA las convierte en un plan de
@@ -95,6 +97,13 @@ botica no usaría el tier gratuito: permite que el contenido se use para entrena
 La clave vive solo en `backend/.env` y la lee el backend. El navegador llama a
 `/api/v1/ia/...`, nunca a Google: una clave de IA en el frontend es una clave
 pública.
+
+En la captura, fíjate en una cosa: **el texto no contiene ni una cifra**. Dice
+"el de mayor rotación" y "cobertura holgada de varios meses", nunca el número.
+Es deliberado — en la primera corrida real el modelo escribió 26.63 donde la
+tabla decía 27.63. No calculó mal: transcribió mal. Los números están a dos
+centímetros, en la tabla; que el modelo los repita solo añade una superficie
+donde equivocarse.
 
 → [`docs/MODULO-IA.md`](docs/MODULO-IA.md) · [`backend/src/ia/`](backend/src/ia)
 
