@@ -57,7 +57,7 @@ El endpoint **siempre devuelve la tabla**. El análisis es lo opcional:
 |---|---|
 | Todo bien | `analisis` con los grupos, `ia.disponible: true` |
 | Sin `GEMINI_API_KEY` | tabla + `motivo: "SIN_API_KEY"` |
-| Google caído, timeout (20 s), JSON inválido | tabla + `motivo: "ERROR_PROVEEDOR"` |
+| Proveedor caído, saturado, sin cuota, timeout (30 s) o JSON ilegible | tabla + `motivo: "ERROR_PROVEEDOR"` |
 | Nada que reponer | tabla vacía + `motivo: "SIN_DATOS"` |
 
 El encargado de almacén tiene que poder hacer su pedido aunque la IA no esté.
@@ -93,9 +93,9 @@ que tumba la aplicación cuando falla es peor que no tener caché.
 
 ## Por qué Gemini, y qué haría distinto en producción
 
-Gemini (Google AI Studio) es hoy el único proveedor con un tier gratuito real y
-**sin tarjeta**: Flash / Flash-Lite, ~1.500 peticiones al día. Para desarrollar
-y demostrar, sobra.
+Gemini (Google AI Studio) es hoy el único proveedor con tier gratuito y **sin
+tarjeta**. El límite medido en este proyecto fue de **20 peticiones al día** por
+modelo: alcanza para desarrollar y demostrar, no para una botica en marcha.
 
 **Limitación consciente:** en el tier gratuito Google puede usar el contenido
 enviado para mejorar sus modelos. Para una botica en producción eso no es
@@ -122,11 +122,14 @@ Se llama a la API por HTTP con el `fetch` nativo de Node 20. Cero dependencias
 nuevas para hablar con el modelo, cero superficie de supply chain, y el día que
 cambie el contrato se ve en un solo archivo (`gemini.service.ts`).
 
-Se piden respuestas en JSON (`responseMimeType`) y se desactiva el
-"pensamiento" (`thinkingBudget: 0`): esos tokens consumen el presupuesto de
-salida y pueden dejar la respuesta vacía; aquí no hace falta razonar en
-profundidad, solo agrupar una tabla. Si el modelo configurado no acepta ese
-campo, se reintenta una vez con la configuración mínima.
+La configuración de la llamada se prueba **en cascada**, de la más controlada a
+la más básica: JSON forzado (`responseMimeType`) con el "pensamiento" apagado
+(`thinkingBudget: 0`), luego sin ese campo, luego sin formato forzado, y por
+último sin `generationConfig`. La razón es concreta: `gemini-2.5` acepta
+`thinkingConfig` y `gemini-3.6` lo rechaza con un 400. Clavar una sola
+configuración es garantizar que el módulo se rompa con la próxima versión del
+modelo. Si aun así el modelo responde con texto en vez de JSON puro,
+`extraerJson` lo recupera.
 
 **El modelo se configura por entorno** (`GEMINI_MODEL`), no está clavado en el
 código. Google retira versiones: `gemini-2.5-flash` dejó de aceptar claves

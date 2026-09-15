@@ -71,39 +71,40 @@ que FEFO nunca iba a vender.
 ![Plan de compra generado por IA](demo/capturas/ia-reposicion.png)
 
 La pantalla de Reposición ya calcula, para cada producto: velocidad de venta,
-días de cobertura que quedan y cuánto pedir. Con 300 productos son 300 filas que
-alguien tiene que leer entera. El módulo de IA las convierte en un plan de
-compra: grupos accionables, ordenados por urgencia, con una frase que explica
-por qué cada uno importa.
+días de cobertura que quedan y cuánto pedir. Con 300 productos eso son 300 filas
+que alguien tiene que leer entera. El módulo toma las más urgentes y las
+convierte en un plan de compra: grupos accionables, cada uno con una frase que
+explica por qué importa. La tabla completa sigue debajo, sin tocar.
 
-**La regla que ordena todo el módulo: el modelo no toca un solo número.**
-Las cifras salen de PostgreSQL. El modelo recibe la tabla ya calculada y
-devuelve texto y códigos de producto. Un LLM alucinando "pide 500 cajas" es
-plata real: mercadería parada o un quiebre de stock.
+**La regla que ordena todo el módulo: los números no pasan por el modelo.**
+Las cifras salen de PostgreSQL, con la misma función que alimenta la tabla. El
+modelo recibe esa tabla ya calculada y devuelve solo dos cosas: texto y códigos
+de producto. Un LLM alucinando "pide 500 cajas" es plata real: mercadería parada
+o un quiebre de stock.
 
-**Y aun así no se le cree.** Cada código que cita el modelo se valida contra la
-tabla que se le envió; el que no existe se descarta, se cuenta y se avisa en la
-respuesta. Con tests.
+**Ni siquiera las copia.** En la primera corrida real escribió 26.63 donde la
+tabla decía 27.63 — no calculó mal, transcribió mal. Ahora el prompt le prohíbe
+escribir cifras: dice "el de mayor rotación", y el número lo pone la tabla, que
+está dos centímetros más abajo. Se ve en la captura.
 
-**Degrada, no revienta.** Sin clave, con Google caído o con timeout, el endpoint
-devuelve igualmente la tabla y un motivo. Nunca un 500: el encargado de almacén
-tiene que poder hacer su pedido aunque la IA no esté.
+**Y aun así no se le cree.** Cada código que cita se valida contra la tabla que
+se le envió; el que no existe se descarta, se cuenta y se avisa en la respuesta.
+Con tests.
 
-**El proveedor está detrás de una interfaz** (`AnalizadorIA`). Hoy es Gemini
-—único tier gratuito real y sin tarjeta—; cambiar a Claude o a un modelo local
-con Ollama es una clase nueva y una línea en el módulo. En producción para una
-botica no usaría el tier gratuito: permite que el contenido se use para entrenar.
+**Degrada, no revienta.** Sin clave, con el proveedor saturado, con la cuota
+agotada o con timeout, el endpoint devuelve igualmente la tabla y un motivo
+distinto en cada caso. Nunca un 500: el encargado de almacén tiene que poder
+hacer su pedido aunque la IA no esté.
+
+**El proveedor está detrás de una interfaz** (`AnalizadorIA`). Hoy es Gemini por
+ser el único con tier gratuito y sin tarjeta; cambiar a Claude o a un modelo
+local con Ollama es una clase nueva y una línea en el módulo. Para una botica en
+producción no usaría ese tier: permite que el contenido se use para entrenar, y
+el límite que medí es de 20 peticiones al día por modelo.
 
 La clave vive solo en `backend/.env` y la lee el backend. El navegador llama a
 `/api/v1/ia/...`, nunca a Google: una clave de IA en el frontend es una clave
 pública.
-
-En la captura, fíjate en una cosa: **el texto no contiene ni una cifra**. Dice
-"el de mayor rotación" y "cobertura holgada de varios meses", nunca el número.
-Es deliberado — en la primera corrida real el modelo escribió 26.63 donde la
-tabla decía 27.63. No calculó mal: transcribió mal. Los números están a dos
-centímetros, en la tabla; que el modelo los repita solo añade una superficie
-donde equivocarse.
 
 → [`docs/MODULO-IA.md`](docs/MODULO-IA.md) · [`backend/src/ia/`](backend/src/ia)
 
